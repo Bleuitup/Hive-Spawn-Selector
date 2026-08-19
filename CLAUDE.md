@@ -53,6 +53,22 @@ Mod files live at the repo root (standard NS2 layout). Load order is declared in
   already-derived classes. Vanilla `TechPoint:GetTeamNumberAllowed()` is server-only — the shared
   getter in `SpawnSelector_Shared.lua` exists so client UI can call it.
 
+## Deliberate behaviors — do not "fix" these
+
+Each of these looks like an oversight in review and is not. Confirmed by the maintainer:
+
+- **A selection survives `sv_reset`.** Only `EndGame` clears the cached pick, so an admin reset
+  restarts the round on the same spawns. That is what a scrim reset should do.
+- **`sv_spawnselect false` does not persist across a map change.** `kEnabled` is a module local
+  and the Lua VM is rebuilt per map, so the mod returns to enabled. The supported way to disable
+  it permanently is to remove the mod from the server.
+- **There is no debug logging in the shipped build.** The `[SpawnSelector]`-prefixed diagnostics
+  were removed in `d2acfcb` once the feature was verified. If a remote problem needs diagnosing,
+  add them back behind a `kDebug` flag (off by default) and keep the flag once it's fixed.
+- **Never run alongside NSL.** Its `customspawns` feature writes the same
+  `Server.teamSpawnOverride`, so the two mods fight over the spawn. This is documented for
+  admins in `README.md`; do not try to make them interoperate.
+
 ## Conventions
 
 - Match the surrounding file's indentation: the server/shared/client/utility files use **tabs**;

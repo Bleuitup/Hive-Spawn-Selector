@@ -92,7 +92,7 @@ local function PickMarineSpawn(alienTechPoint)
 	local validTechPoints = { }
 	for _, tp in ipairs(EntityListToTable(Shared.GetEntitiesWithClassname("TechPoint"))) do
 		local teamNum = tp:GetTeamNumberAllowed()
-		if tp ~= alienTechPoint and (teamNum == 0 or teamNum == kTeam1Index) and teamNum ~= 3 then
+		if tp ~= alienTechPoint and (teamNum == 0 or teamNum == kTeam1Index) then
 			table.insert(validTechPoints, tp)
 		end
 	end
@@ -137,15 +137,23 @@ local function OnSpawnSelectionMessage(client, message)
 	end
 
 	local tp = Shared.GetEntity(message.techPointId)
-	if tp and tp:isa("TechPoint") and (tp:GetTeamNumberAllowed() == 0 or tp:GetTeamNumberAllowed() == kTeam2Index) then
-		-- Valid alien-allowed pick: cache it, choose a different marine spawn, and install the
+	local marineTechPoint = tp and tp:isa("TechPoint")
+		and (tp:GetTeamNumberAllowed() == 0 or tp:GetTeamNumberAllowed() == kTeam2Index)
+		and PickMarineSpawn(tp)
+
+	if marineTechPoint then
+		-- Valid alien-allowed pick with a legal marine partner: cache both and install the
 		-- override so it actually wins at round start.
 		kSelectedAlienSpawn = tp
-		kSelectedMarineSpawn = PickMarineSpawn(tp)
+		kSelectedMarineSpawn = marineTechPoint
 		ApplyTeamSpawnOverride()
-		GetGameInfoEntity():SetSelectedSpawn(tp:GetId())
+		local gameInfo = GetGameInfoEntity()
+		if gameInfo then
+			gameInfo:SetSelectedSpawn(tp:GetId())
+		end
 	else
-		-- Random / clear request (or an invalid id) - revert to vanilla selection.
+		-- Random / clear request, an invalid id, or a pick we cannot pair a marine spawn with -
+		-- revert to vanilla selection rather than showing a choice we would not honour.
 		ClearSelectedSpawns()
 	end
 

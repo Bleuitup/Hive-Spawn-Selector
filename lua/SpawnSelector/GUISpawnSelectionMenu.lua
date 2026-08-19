@@ -12,25 +12,30 @@ local kTitleColor = Color(0.08, 0.16, 0.26, 1)
 local kTitleTextColor = Color(0.28, 0.36, 0.46, 1)
 local kOptionColor = Color(0.7, 0.7, 0.7, 1)
 local kOptionSelectedColor = Color(1, 1, 1, 1)
-local kOptionChoosen = Color(0, 1, 0, 1)
+local kOptionChosenColor = Color(0, 1, 0, 1)
 
 local kOptionOffset = Vector(0, 15, 0)
-local kTitleVoteOffset = Vector(0, 8, 0)
+local kTitleTextOffset = Vector(0, 8, 0)
 local kSpawnBackgroundSize = Vector(200, 175, 0)
 local kTitleBackgroundSize = Vector(198, 20, 0)
-local kSpawnTextFont = Fonts.kAgencyFB_Small
 
 local kSelectionDelay = 1
+
+-- The panel draws a fixed number of location slots followed by a trailing "Random Spawn" entry.
+-- No stock NS2 map comes near the cap; any locations past it are simply not listed.
+local kMaxSpawnOptions = 9
+local kRandomOption = kMaxSpawnOptions + 1
 
 local function GetRelevantTechPoints()
 
     local gameInfo = GetGameInfoEntity()
-    local selectedIndex = 10
+    local selectedIndex = kRandomOption
     if gameInfo and gameInfo:GetSpawnSelectionEnabled() then
         local allowableSpawns = { }
         local techPoints = EntityListToTable(Shared.GetEntitiesWithClassname("TechPoint"))
         for _, currentTechPoint in ipairs(techPoints) do
-            if currentTechPoint:GetTeamNumberAllowed() == 0 or currentTechPoint:GetTeamNumberAllowed() == 2 then
+            local teamNumberAllowed = currentTechPoint:GetTeamNumberAllowed()
+            if (teamNumberAllowed == 0 or teamNumberAllowed == kTeam2Index) and #allowableSpawns < kMaxSpawnOptions then
                 table.insert(allowableSpawns, currentTechPoint:GetLocationName())
                 if currentTechPoint:GetId() == gameInfo:GetSelectedSpawn() then
                     selectedIndex = #allowableSpawns
@@ -53,10 +58,10 @@ local function UpdateUISize(self)
     self.titleBackground:SetSize(GUIScale(kTitleBackgroundSize))
     self.titleBackground:SetPosition(Vector(2, 2, 0))
 
-    self.titleText:SetPosition(GUIScale(kTitleVoteOffset))
+    self.titleText:SetPosition(GUIScale(kTitleTextOffset))
     self.titleText:SetScale(GetScaledVector())
 
-    for i = 1, 10 do
+    for i = 1, kRandomOption do
 
         local vec = kOptionOffset
         vec = vec * i
@@ -70,10 +75,10 @@ end
 
 local function UpdateChoiceOptions(self)
 
-    for i = 1, 9 do
+    for i = 1, kMaxSpawnOptions do
         self["spawnLocation"..i]:SetText(self.spawnLocations[i] or "")
     end
-    self.spawnLocation10:SetText("Random Spawn")
+    self["spawnLocation"..kRandomOption]:SetText("Random Spawn")
     UpdateUISize(self)
 end
 
@@ -99,7 +104,7 @@ function GUISpawnSelectionMenu:Initialize()
 
     self.spawnLocations = { }
     self.enabled = false
-    self.selectedIndex = 10
+    self.selectedIndex = kRandomOption
     self.enabled, self.spawnLocations, self.selectedIndex = GetRelevantTechPoints()
     self.opened = false
     self.lastSelected = 0
@@ -107,7 +112,7 @@ function GUISpawnSelectionMenu:Initialize()
     self.lastUpdateCheck = Shared.GetTime()
     self.selectedId = -1
 
-    for i = 1, 9 do
+    for i = 1, kRandomOption do
 
         self["spawnLocation"..i] = GUIManager:CreateTextItem()
         self["spawnLocation"..i]:SetColor(kOptionColor)
@@ -117,13 +122,6 @@ function GUISpawnSelectionMenu:Initialize()
         self.background:AddChild(self["spawnLocation"..i])
 
     end
-
-    self.spawnLocation10 = GUIManager:CreateTextItem()
-    self.spawnLocation10:SetColor(kOptionColor)
-    self.spawnLocation10:SetAnchor(GUIItem.Middle, GUIItem.Top)
-    self.spawnLocation10:SetTextAlignmentX(GUIItem.Align_Center)
-    self.spawnLocation10:SetTextAlignmentY(GUIItem.Align_Center)
-    self.background:AddChild(self.spawnLocation10)
 
     UpdateChoiceOptions(self)
 
@@ -150,7 +148,7 @@ function GUISpawnSelectionMenu:Uninitialize()
     GUI.DestroyItem(self.titleBackground)
     self.titleBackground = nil
 
-    for i = 1, 10 do
+    for i = 1, kRandomOption do
         GUI.DestroyItem(self["spawnLocation"..i])
         self["spawnLocation"..i] = nil
     end
@@ -190,12 +188,12 @@ function GUISpawnSelectionMenu:Update(deltaTime)
 
     PROFILE("GUISpawnSelectionMenu:Update")
 
-    if self.background:GetIsVisible() and not self.hidden then
+    if self.background:GetIsVisible() then
 
-        for i = 1, 10 do
+        for i = 1, kRandomOption do
 
             if i == self.selectedIndex then
-                self["spawnLocation"..i]:SetColor(kOptionChoosen)
+                self["spawnLocation"..i]:SetColor(kOptionChosenColor)
             elseif GUIItemContainsPoint(self["spawnLocation"..i], Client.GetCursorPosScreen()) then
                 self["spawnLocation"..i]:SetColor(kOptionSelectedColor)
             else
@@ -206,24 +204,37 @@ function GUISpawnSelectionMenu:Update(deltaTime)
 
     end
 
-    if GetGameInfoEntity():GetGameStarted() and self.background:GetIsVisible() then
-        self:SetIsVisible(false)
+    local gameInfo = GetGameInfoEntity()
+    if not gameInfo then
+        return
     end
 
-    if not GetGameInfoEntity():GetGameStarted() and not self.background:GetIsVisible() then
+    -- Track whether the panel *should* be open rather than whether it happens to be drawn. While
+    -- selection is disabled (or the help screen is up) the panel is hidden but still open, and
+    -- keying off the drawn state re-opened it every frame - which reset the refresh timer below,
+    -- so self.enabled never updated and sv_spawnselect could not be toggled live.
+    local gameStarted = gameInfo:GetGameStarted()
+    if gameStarted and self.opened then
+        self:SetIsVisible(false)
+    elseif not gameStarted and not self.opened then
         self:SetIsVisible(true)
         self.updateCheck = true
         self.lastUpdateCheck = Shared.GetTime()
     end
 
     if self.lastUpdateCheck + 1 < Shared.GetTime() then
+        local wasEnabled = self.enabled
         self.enabled, self.spawnLocations, self.selectedIndex = GetRelevantTechPoints()
+        -- An admin toggling sv_spawnselect has to show or hide the panel under a seated commander.
+        if wasEnabled ~= self.enabled then
+            self:UpdateVisibility()
+        end
         if self.updateCheck then
             UpdateChoiceOptions(self)
             self.updateCheck = false
         end
-        if self.selectedId ~= GetGameInfoEntity():GetSelectedSpawn() then
-            self.selectedId = GetGameInfoEntity():GetSelectedSpawn()
+        if self.selectedId ~= gameInfo:GetSelectedSpawn() then
+            self.selectedId = gameInfo:GetSelectedSpawn()
             UpdateChoiceOptions(self)
         end
         self.lastUpdateCheck = Shared.GetTime()
@@ -243,7 +254,7 @@ local function SpawnItemSelected(self, index)
             end
         end
 
-        if index == 10 then
+        if index == kRandomOption then
             Client.SendNetworkMessage("SpawnSelector_SelectSpawn", { techPointId = -1 }, true)
             self.selectedIndex = index
         end
@@ -254,11 +265,11 @@ end
 
 function GUISpawnSelectionMenu:SendKeyEvent(key, down)
 
-    if self.background:GetIsVisible() and not self.hidden then
+    if self.background:GetIsVisible() then
 
         if key == InputKey.MouseButton0 then
 
-            for i = 1, 10 do
+            for i = 1, kRandomOption do
                 local item = self["spawnLocation"..i]
                 if item:GetIsVisible() and GUIItemContainsPoint(item, Client.GetCursorPosScreen()) and self.lastSelected + kSelectionDelay < Shared.GetTime() then
                     self.lastSelected = Shared.GetTime()

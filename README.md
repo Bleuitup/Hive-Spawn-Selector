@@ -56,6 +56,22 @@ sv_spawnselect false    -- disable; spawns revert to vanilla random placement
 When disabled, the commander panel is hidden, the pre-round freeze and commander-logout
 lock are lifted, and the game uses its standard spawn logic.
 
+Two things worth knowing about the toggle:
+
+- It lasts for the **current map only**. A map change puts the mod back to enabled. To turn
+  spawn selection off for good, unsubscribe from or disable the mod on the server rather than
+  relying on the console command.
+- An admin **`sv_reset` keeps the current selection**, so a reset scrim restarts on the same
+  agreed spawns. Click **Random Spawn** first if you want the reset round placed normally.
+
+## Compatibility
+
+**Do not run this mod alongside NSL.** NSL contains its own spawn-selection feature that drives
+the same underlying game setting, and running both means neither can be relied on to decide
+where a team starts. Pick one or the other.
+
+Otherwise the mod is standalone and expects no other mods to be present.
+
 ## Credits
 
 This mod is based on the spawn-selection feature from the **NSL (Natural Selection League)**

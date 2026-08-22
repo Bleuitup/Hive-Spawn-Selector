@@ -11,7 +11,9 @@ deliberate starting positions instead of the usual random spawns.
 ## What it does
 
 - Before the round starts, the **alien commander** sees a **"SELECT STARTING LOCATION"**
-  panel listing every hive location available on the map.
+  panel listing every hive location available on the map (or, if the server also runs Shine's
+  CustomSpawns plugin with a config for the current map, only the locations it allows aliens to
+  start at — see Compatibility below).
 - Whatever the commander selects becomes the **alien starting hive**.
 - The **marine base** is then placed at a different start location, chosen at random from the
   map's valid opposing spawns for the alien's pick (falling back to any other tech point on
@@ -73,7 +75,17 @@ Two things worth knowing about the toggle:
 the same underlying game setting, and running both means neither can be relied on to decide
 where a team starts. Pick one or the other.
 
-Otherwise the mod is standalone and expects no other mods to be present.
+**Works alongside Shine's CustomSpawns plugin, automatically.** If your server also runs
+[Shine](https://github.com/Person8880/Shine) with the third-party **CustomSpawns** plugin from
+[Shine-Epsilon](https://github.com/GhoulofGSG9/Shine-Epsilon), and CustomSpawns has a config for
+the map you're on, the picker automatically restricts itself to the hive locations CustomSpawns
+allows aliens to start at, and the marine partner is chosen from CustomSpawns' own legal pairings
+instead of the map's vanilla spawn pairs. This needs no configuration here — it's detected
+automatically — and on any map or server where CustomSpawns isn't active, the picker behaves
+exactly as described above. This mod is still standalone and does not require Shine to be
+installed; the CustomSpawns integration simply activates itself when both happen to be present.
+
+Otherwise the mod expects no other mods to be present.
 
 ## Credits
 

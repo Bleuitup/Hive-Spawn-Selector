@@ -28,7 +28,12 @@ end
 local networkVars =
 {
 	spawnSelectionEnabled = "boolean",
-	spawnSelected = "entityid"
+	spawnSelected = "entityid",
+	-- Comma-separated lowercase location names of the alien-legal spawns for this round, as
+	-- decided by Shine's CustomSpawns plugin when it's present and configured for the current map
+	-- (see HiveSpawnSelection_Server.lua). Empty otherwise, in which case the client falls back to
+	-- GetTeamNumberAllowed().
+	legalAlienSpawns = "string (256)"
 }
 
 local originalGameInfoOnCreate
@@ -39,6 +44,7 @@ originalGameInfoOnCreate = Class_ReplaceMethod("GameInfo", "OnCreate",
 		if Server then
 			self.spawnSelectionEnabled = true
 			self.spawnSelected = Entity.invalidId
+			self.legalAlienSpawns = ""
 		end
 
 	end
@@ -52,6 +58,10 @@ function GameInfo:GetSelectedSpawn()
 	return self.spawnSelected
 end
 
+function GameInfo:GetLegalAlienSpawns()
+	return self.legalAlienSpawns
+end
+
 if Server then
 
 	function GameInfo:SetSpawnSelectionEnabled(enabled)
@@ -60,6 +70,10 @@ if Server then
 
 	function GameInfo:SetSelectedSpawn(techPointId)
 		self.spawnSelected = techPointId
+	end
+
+	function GameInfo:SetLegalAlienSpawns(commaSeparatedNames)
+		self.legalAlienSpawns = commaSeparatedNames or ""
 	end
 
 end

@@ -4,29 +4,41 @@ Guidance for AI assistants and contributors working in this repository.
 
 ## What this is
 
-**Spawn Selector** is a server-side mod for the game **Natural Selection 2**. Before a round, the
-**alien commander** picks the team's starting hive from a UI; the **marines** are then placed at a
-random *legal* partner location for that hive. It also freezes players and locks commander logout
-during the start-of-round countdown.
+**Hive Spawn Selection** is a server-side mod for the game **Natural Selection 2**. Before a
+round, the **alien commander** picks the team's starting hive from a UI; the **marines** are then
+placed at a random *legal* partner location for that hive. It also freezes players and locks
+commander logout during the start-of-round countdown.
 
 The underlying approach is adapted from the **NSL** plugin by **Dragon (xToken)** —
 <https://github.com/xToken/NSL>. Files that borrow from it credit it in their header. `README.md`
 is the user/server-admin facing doc; this file is for development.
 
+This is a **standalone NS2 mod**, not a Shine extension — an earlier `shine-extension` branch
+converted it into one (with an integration against Shine-Epsilon's CustomSpawns plugin so the
+alien commander could only pick spawns CustomSpawns already permitted per-map), but that approach
+was reverted: it made the mod harder to debug than the standalone form, which was already working
+correctly. Don't re-attempt that conversion without being asked again.
+
 ## Layout
 
 Mod files live at the repo root (standard NS2 layout). Load order is declared in
-`lua/entry/SpawnSelector.entry` (`Client` / `Server` / `Predict` bootstraps + `Priority`).
+`lua/entry/HiveSpawnSelection.entry` (`Client` / `Server` / `Predict` bootstraps + `Priority`).
 
-- `lua/SpawnSelector/SpawnSelector_Utility.lua` — vendored `Class_ReplaceMethod`; loaded first.
-- `lua/SpawnSelector/SpawnSelector_Shared.lua` — network message, a shared `TechPoint` getter,
+- `lua/HiveSpawnSelection/HiveSpawnSelection_Utility.lua` — vendored `Class_ReplaceMethod`; loaded first.
+- `lua/HiveSpawnSelection/HiveSpawnSelection_Shared.lua` — network message, a shared `TechPoint` getter,
   `GameInfo` synced fields (`spawnSelectionEnabled`, `spawnSelected`), and the countdown freeze.
   Loaded by client, server **and** predict.
-- `lua/SpawnSelector/SpawnSelector_Server.lua` — all server logic (pick handler, marine selection,
+- `lua/HiveSpawnSelection/HiveSpawnSelection_Server.lua` — all server logic (pick handler, marine selection,
   the spawn-apply mechanism, logout lock, `sv_spawnselect` admin toggle).
-- `lua/SpawnSelector/SpawnSelector_Client.lua` — attaches the UI to `AlienCommander`.
-- `lua/SpawnSelector/GUISpawnSelectionMenu.lua` — the "SELECT STARTING LOCATION" panel.
-- `lua/SpawnSelector/SpawnSelector_Predict.lua` — loads shared defs into the prediction VM.
+- `lua/HiveSpawnSelection/HiveSpawnSelection_Client.lua` — attaches the UI to `AlienCommander`.
+- `lua/HiveSpawnSelection/GUIHiveSpawnSelectionMenu.lua` — the "SELECT STARTING LOCATION" panel.
+- `lua/HiveSpawnSelection/HiveSpawnSelection_Predict.lua` — loads shared defs into the prediction VM.
+
+Naming: the mod's name is **Hive Spawn Selection** and file/class/network-message identifiers
+follow that. `sv_spawnselect` (the console command) and the internal `GameInfo` field names
+(`spawnSelectionEnabled`, `spawnSelected`, local vars like `kEnabled`) are deliberately left as
+generic descriptive names rather than renamed to match — that's an intentional, already-decided
+scope boundary, not an oversight.
 
 ## NS2 specifics worth knowing before changing things
 
@@ -51,7 +63,7 @@ Mod files live at the repo root (standard NS2 layout). Load order is declared in
   **Predict** VM too, or the local player rubber-bands.
 - `Class_ReplaceMethod(class, name, fn)` returns the original for chaining and also replaces it on
   already-derived classes. Vanilla `TechPoint:GetTeamNumberAllowed()` is server-only — the shared
-  getter in `SpawnSelector_Shared.lua` exists so client UI can call it.
+  getter in `HiveSpawnSelection_Shared.lua` exists so client UI can call it.
 
 ## Deliberate behaviors — do not "fix" these
 
@@ -62,9 +74,9 @@ Each of these looks like an oversight in review and is not. Confirmed by the mai
 - **`sv_spawnselect false` does not persist across a map change.** `kEnabled` is a module local
   and the Lua VM is rebuilt per map, so the mod returns to enabled. The supported way to disable
   it permanently is to remove the mod from the server.
-- **There is no debug logging in the shipped build.** The `[SpawnSelector]`-prefixed diagnostics
-  were removed in `d2acfcb` once the feature was verified. If a remote problem needs diagnosing,
-  add them back behind a `kDebug` flag (off by default) and keep the flag once it's fixed.
+- **There is no debug logging in the shipped build.** The diagnostics were removed in `d2acfcb`
+  once the feature was verified. If a remote problem needs diagnosing, add them back behind a
+  `kDebug` flag (off by default) and keep the flag once it's fixed.
 - **Never run alongside NSL.** Its `customspawns` feature writes the same
   `Server.teamSpawnOverride`, so the two mods fight over the spawn. This is documented for
   admins in `README.md`; do not try to make them interoperate.
@@ -72,7 +84,7 @@ Each of these looks like an oversight in review and is not. Confirmed by the mai
 ## Conventions
 
 - Match the surrounding file's indentation: the server/shared/client/utility files use **tabs**;
-  `GUISpawnSelectionMenu.lua` uses 4-space indent (kept from its NSL origin).
+  `GUIHiveSpawnSelectionMenu.lua` uses 4-space indent (kept from its NSL origin).
 - Gate new round-affecting behavior on the synced enable flag (`GameInfo:GetSpawnSelectionEnabled()`
   / the server-side `kEnabled`) so `sv_spawnselect false` reverts cleanly to vanilla.
 - Keep `README.md` user-facing; put developer notes here.

@@ -1,11 +1,11 @@
--- SpawnSelector
--- lua/SpawnSelector/GUISpawnSelectionMenu.lua
+-- Hive Spawn Selection
+-- lua/HiveSpawnSelection/GUIHiveSpawnSelectionMenu.lua
 --
 -- Alien commander UI for choosing the team's starting location.
 -- Adapted from the NSL plugin:
 -- https://github.com/xToken/NSL - lua/NSL/GUI/GUINSLSpawnSelectionMenu.lua - by Dragon
 
-class 'GUISpawnSelectionMenu' (GUIScript)
+class 'GUIHiveSpawnSelectionMenu' (GUIScript)
 
 local kBackgroundColor = Color(0.0, 0.0, 0.0, 0.7)
 local kTitleColor = Color(0.08, 0.16, 0.26, 1)
@@ -82,7 +82,7 @@ local function UpdateChoiceOptions(self)
     UpdateUISize(self)
 end
 
-function GUISpawnSelectionMenu:Initialize()
+function GUIHiveSpawnSelectionMenu:Initialize()
 
     self.background = GUIManager:CreateGraphicItem()
     self.background:SetIsVisible(false)
@@ -133,14 +133,14 @@ function GUISpawnSelectionMenu:Initialize()
 
 end
 
-function GUISpawnSelectionMenu:OnHelpScreenVisChange(state)
+function GUIHiveSpawnSelectionMenu:OnHelpScreenVisChange(state)
 
     self.hiddenByHelpScreen = state
     self:UpdateVisibility()
 
 end
 
-function GUISpawnSelectionMenu:Uninitialize()
+function GUIHiveSpawnSelectionMenu:Uninitialize()
 
     GUI.DestroyItem(self.titleText)
     self.titleText = nil
@@ -164,14 +164,14 @@ function GUISpawnSelectionMenu:Uninitialize()
 
 end
 
-function GUISpawnSelectionMenu:SetIsVisible(state)
+function GUIHiveSpawnSelectionMenu:SetIsVisible(state)
 
     self.opened = state
     self:UpdateVisibility()
 
 end
 
-function GUISpawnSelectionMenu:UpdateVisibility()
+function GUIHiveSpawnSelectionMenu:UpdateVisibility()
 
     local visible = self.opened and not self.hiddenByHelpScreen and self.enabled
 
@@ -180,13 +180,13 @@ function GUISpawnSelectionMenu:UpdateVisibility()
 
 end
 
-function GUISpawnSelectionMenu:OnResolutionChanged(oldX, oldY, newX, newY)
+function GUIHiveSpawnSelectionMenu:OnResolutionChanged(oldX, oldY, newX, newY)
     UpdateUISize(self)
 end
 
-function GUISpawnSelectionMenu:Update(deltaTime)
+function GUIHiveSpawnSelectionMenu:Update(deltaTime)
 
-    PROFILE("GUISpawnSelectionMenu:Update")
+    PROFILE("GUIHiveSpawnSelectionMenu:Update")
 
     if self.background:GetIsVisible() then
 
@@ -249,13 +249,13 @@ local function SpawnItemSelected(self, index)
         local techPoints = EntityListToTable(Shared.GetEntitiesWithClassname("TechPoint"))
         for _, currentTechPoint in ipairs(techPoints) do
             if currentTechPoint:GetLocationName() == self.spawnLocations[index] then
-                Client.SendNetworkMessage("SpawnSelector_SelectSpawn", { techPointId = currentTechPoint:GetId() }, true)
+                Client.SendNetworkMessage("HiveSpawnSelection_SelectSpawn", { techPointId = currentTechPoint:GetId() }, true)
                 self.selectedIndex = index
             end
         end
 
         if index == kRandomOption then
-            Client.SendNetworkMessage("SpawnSelector_SelectSpawn", { techPointId = -1 }, true)
+            Client.SendNetworkMessage("HiveSpawnSelection_SelectSpawn", { techPointId = -1 }, true)
             self.selectedIndex = index
         end
 
@@ -263,7 +263,7 @@ local function SpawnItemSelected(self, index)
 
 end
 
-function GUISpawnSelectionMenu:SendKeyEvent(key, down)
+function GUIHiveSpawnSelectionMenu:SendKeyEvent(key, down)
 
     if self.background:GetIsVisible() then
 

@@ -1,5 +1,5 @@
--- SpawnSelector
--- lua/SpawnSelector/SpawnSelector_Server.lua
+-- Hive Spawn Selection
+-- lua/HiveSpawnSelection/HiveSpawnSelection_Server.lua
 --
 -- Server logic: the alien commander picks a starting tech point; the marines are given a
 -- random legal partner spawn for it. The pick is applied at round start via
@@ -8,8 +8,8 @@
 -- Adapted from the NSL plugin:
 -- https://github.com/xToken/NSL - lua/NSL/customspawns/server.lua - by Dragon
 
-Script.Load("lua/SpawnSelector/SpawnSelector_Utility.lua")
-Script.Load("lua/SpawnSelector/SpawnSelector_Shared.lua")
+Script.Load("lua/HiveSpawnSelection/HiveSpawnSelection_Utility.lua")
+Script.Load("lua/HiveSpawnSelection/HiveSpawnSelection_Shared.lua")
 
 local kEnabled = true
 local kSelectedMarineSpawn
@@ -159,7 +159,7 @@ local function OnSpawnSelectionMessage(client, message)
 
 end
 
-Server.HookNetworkMessage("SpawnSelector_SelectSpawn", OnSpawnSelectionMessage)
+Server.HookNetworkMessage("HiveSpawnSelection_SelectSpawn", OnSpawnSelectionMessage)
 
 -- Admin toggle. Defaults to enabled; "sv_spawnselect false" disables (UI hides, spawns vanilla).
 local function SetSpawnSelectEnabled(client, enabledArg)
@@ -179,7 +179,7 @@ local function SetSpawnSelectEnabled(client, enabledArg)
 		ClearSelectedSpawns()
 	end
 
-	Shared.Message("SpawnSelector: alien spawn selection " .. (kEnabled and "ENABLED" or "DISABLED"))
+	Shared.Message("Hive Spawn Selection: alien spawn selection " .. (kEnabled and "ENABLED" or "DISABLED"))
 
 end
 

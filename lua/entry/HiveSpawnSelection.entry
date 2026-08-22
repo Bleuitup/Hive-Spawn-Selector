@@ -1,0 +1,6 @@
+modEntry = {
+	Client = "lua/HiveSpawnSelection/HiveSpawnSelection_Client.lua",
+	Server = "lua/HiveSpawnSelection/HiveSpawnSelection_Server.lua",
+	Predict = "lua/HiveSpawnSelection/HiveSpawnSelection_Predict.lua",
+	Priority = 5
+}

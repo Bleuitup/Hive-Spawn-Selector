@@ -1,5 +1,5 @@
--- SpawnSelector
--- lua/SpawnSelector/SpawnSelector_Utility.lua
+-- Hive Spawn Selection
+-- lua/HiveSpawnSelection/HiveSpawnSelection_Utility.lua
 --
 -- Class_ReplaceMethod is vendored verbatim from the NSL plugin.
 -- Source: https://github.com/xToken/NSL - lua/NSL/nsl_utilities.lua - by Dragon

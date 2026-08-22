@@ -1,4 +1,4 @@
-# Spawn Selector
+# Hive Spawn Selection
 
 A small Natural Selection 2 server mod that lets the **Aliens team choose where they
 start** each round. Once the alien commander picks a hive location, the **Marines are

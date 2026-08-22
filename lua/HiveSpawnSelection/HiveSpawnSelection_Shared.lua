@@ -1,5 +1,5 @@
--- SpawnSelector
--- lua/SpawnSelector/SpawnSelector_Shared.lua
+-- Hive Spawn Selection
+-- lua/HiveSpawnSelection/HiveSpawnSelection_Shared.lua
 --
 -- Shared definitions: the spawn-selection network message and two synced GameInfo
 -- fields the commander UI reads (whether selection is enabled, and the currently
@@ -8,10 +8,10 @@
 -- GameInfo extension pattern adapted from the NSL plugin:
 -- https://github.com/xToken/NSL - lua/NSL/gameinfo/shared.lua - by Dragon
 
-Script.Load("lua/SpawnSelector/SpawnSelector_Utility.lua")
+Script.Load("lua/HiveSpawnSelection/HiveSpawnSelection_Utility.lua")
 
 -- Client -> Server: the alien commander's chosen tech point (-1 means "random / clear").
-Shared.RegisterNetworkMessage("SpawnSelector_SelectSpawn", { techPointId = "entityid" })
+Shared.RegisterNetworkMessage("HiveSpawnSelection_SelectSpawn", { techPointId = "entityid" })
 
 -- Vanilla only defines TechPoint:GetTeamNumberAllowed() inside an "if Server then" block,
 -- so the method does not exist on the client even though the allowedTeamNumber networkVar is

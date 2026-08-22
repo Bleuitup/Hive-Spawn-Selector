@@ -1,4 +1,4 @@
-# Hive Spawn Selection
+# Spawn Selector
 
 A small Natural Selection 2 server mod that lets the **Aliens team choose where they
 start** each round. Once the alien commander picks a hive location, the **Marines are
@@ -81,9 +81,10 @@ where a team starts. Pick one or the other.
 the map you're on, the picker automatically restricts itself to the hive locations CustomSpawns
 allows aliens to start at, and the marine partner is chosen from CustomSpawns' own legal pairings
 instead of the map's vanilla spawn pairs. This needs no configuration here — it's detected
-automatically — and on any map or server where CustomSpawns isn't active, the picker behaves
-exactly as described above. This mod is still standalone and does not require Shine to be
-installed; the CustomSpawns integration simply activates itself when both happen to be present.
+automatically — and on any map or server where CustomSpawns isn't active, the picker falls back
+to the map's own default allowed spawn combinations, exactly as described above. This mod is
+still standalone and does not require Shine to be installed; the CustomSpawns integration simply
+activates itself when both happen to be present.
 
 Otherwise the mod expects no other mods to be present.
 

@@ -1,5 +1,5 @@
--- Hive Spawn Selection
--- lua/HiveSpawnSelection/HiveSpawnSelection_Server.lua
+-- SpawnSelector
+-- lua/SpawnSelector/SpawnSelector_Server.lua
 --
 -- Server logic: the alien commander picks a starting tech point; the marines are given a
 -- random legal partner spawn for it.
@@ -21,13 +21,14 @@
 -- - CustomSpawns absent, or present but not configured for this map: the original mechanism -
 --   Server.teamSpawnOverride, the highest-priority spawn path in NS2Gamerules:ResetGame (checked
 --   before Server.spawnSelectionOverrides and before ChooseTechPoint), with the marine partner
---   picked randomly from the map's own spawn_selection_override pairs.
+--   picked randomly from the map's own spawn_selection_override pairs (the default map spawn
+--   combinations).
 --
 -- Adapted from the NSL plugin:
 -- https://github.com/xToken/NSL - lua/NSL/customspawns/server.lua - by Dragon
 
-Script.Load("lua/HiveSpawnSelection/HiveSpawnSelection_Utility.lua")
-Script.Load("lua/HiveSpawnSelection/HiveSpawnSelection_Shared.lua")
+Script.Load("lua/SpawnSelector/SpawnSelector_Utility.lua")
+Script.Load("lua/SpawnSelector/SpawnSelector_Shared.lua")
 
 local kEnabled = true
 local kSelectedMarineSpawn
@@ -90,7 +91,8 @@ end
 -- this server, CustomSpawns is loaded and enabled, AND it has finished parsing a config for the
 -- current map - nil in every other case (Shine not installed, CustomSpawns not installed,
 -- disabled, or no config for this map), which is exactly when we should fall back to the vanilla
--- Server.teamSpawnOverride path. See CLAUDE.md for why this alignment holds.
+-- Server.teamSpawnOverride path with the map's default spawn combinations. See CLAUDE.md for why
+-- this alignment holds.
 local function GetCustomSpawnsData()
 	if not (Shine and Shine.IsExtensionEnabled) then
 		return nil
@@ -130,10 +132,10 @@ local function PickMarineSpawnFromCustomSpawns(spawns, alienTechPoint)
 end
 
 -- Pick a random VALID marine tech point for the alien's chosen hive using the vanilla map's own
--- spawn_selection_override pairs (Server.spawnSelectionOverrides), common on competitive maps.
--- Falls back to any other tech point on maps that don't define pairs. Uses math.random (the old
--- techPointRandomizer:random call kept returning the first tech point, so the marine spawn was
--- effectively fixed).
+-- spawn_selection_override pairs (Server.spawnSelectionOverrides) - the map's default allowed
+-- spawn combinations, common on competitive maps. Falls back to any other tech point on maps that
+-- don't define pairs. Uses math.random (the old techPointRandomizer:random call kept returning
+-- the first tech point, so the marine spawn was effectively fixed).
 local function PickMarineSpawnVanilla(alienTechPoint)
 
 	local alienName = string.lower(alienTechPoint:GetLocationName())
@@ -191,12 +193,12 @@ local kShineHooksRegistered = false
 local function EnsureShineHooksRegistered()
 	if kShineHooksRegistered then return end
 	if not (Shine and Shine.Hook and Shine.Hook.Add) then return end
-	Shine.Hook.Add("PreChooseTechPoint", "HiveSpawnSelection", OnPreChooseTechPoint)
+	Shine.Hook.Add("PreChooseTechPoint", "SpawnSelector", OnPreChooseTechPoint)
 	kShineHooksRegistered = true
 end
 
--- Recomputes the legal-alien-spawn list synced to clients (see HiveSpawnSelection_Shared.lua /
--- GUIHiveSpawnSelectionMenu.lua). CustomSpawns lazily parses its map config from its own
+-- Recomputes the legal-alien-spawn list synced to clients (see SpawnSelector_Shared.lua /
+-- GUISpawnSelectionMenu.lua). CustomSpawns lazily parses its map config from its own
 -- "OnGameReset" handler, itself triggered by the same underlying NS2Gamerules:ResetGame call this
 -- runs from - since this runs AFTER originalResetGame() below, CustomSpawns (if present) has
 -- already had a chance to parse this map's config by the time we read its data, regardless of
@@ -259,7 +261,7 @@ local function AnnounceSelection(techPointId)
 	for _, player in ipairs(players) do
 		local client = Server.GetOwner(player)
 		if client then
-			Server.SendNetworkMessage(client, "HiveSpawnSelection_Announce", { techPointId = techPointId }, true)
+			Server.SendNetworkMessage(client, "SpawnSelector_Announce", { techPointId = techPointId }, true)
 		end
 	end
 end
@@ -317,7 +319,8 @@ local function OnSpawnSelectionMessage(client, message)
 		return
 	end
 
-	-- Vanilla fallback path (CustomSpawns absent, or not configured for this map).
+	-- Vanilla fallback path (CustomSpawns absent, or not configured for this map) - the map's
+	-- default allowed spawn combinations.
 	local marineTechPoint = (tp:GetTeamNumberAllowed() == 0 or tp:GetTeamNumberAllowed() == kTeam2Index)
 		and PickMarineSpawnVanilla(tp)
 
@@ -342,7 +345,7 @@ local function OnSpawnSelectionMessage(client, message)
 
 end
 
-Server.HookNetworkMessage("HiveSpawnSelection_SelectSpawn", OnSpawnSelectionMessage)
+Server.HookNetworkMessage("SpawnSelector_SelectSpawn", OnSpawnSelectionMessage)
 
 -- Admin toggle. Defaults to enabled; "sv_spawnselect false" disables (UI hides, spawns vanilla).
 local function SetSpawnSelectEnabled(client, enabledArg)
@@ -362,7 +365,7 @@ local function SetSpawnSelectEnabled(client, enabledArg)
 		ClearSelectedSpawns()
 	end
 
-	Shared.Message("Hive Spawn Selection: alien spawn selection " .. (kEnabled and "ENABLED" or "DISABLED"))
+	Shared.Message("SpawnSelector: alien spawn selection " .. (kEnabled and "ENABLED" or "DISABLED"))
 
 end
 

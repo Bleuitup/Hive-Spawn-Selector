@@ -4,10 +4,10 @@ Guidance for AI assistants and contributors working in this repository.
 
 ## What this is
 
-**Hive Spawn Selection** is a server-side mod for the game **Natural Selection 2**. Before a
-round, the **alien commander** picks the team's starting hive from a UI; the **marines** are then
-placed at a random *legal* partner location for that hive. It also freezes players and locks
-commander logout during the start-of-round countdown.
+**Spawn Selector** is a server-side mod for the game **Natural Selection 2**. Before a round, the
+**alien commander** picks the team's starting hive from a UI; the **marines** are then placed at a
+random *legal* partner location for that hive. It also freezes players and locks commander logout
+during the start-of-round countdown.
 
 The underlying approach is adapted from the **NSL** plugin by **Dragon (xToken)** —
 <https://github.com/xToken/NSL>. Files that borrow from it credit it in their header. `README.md`
@@ -16,26 +16,20 @@ is the user/server-admin facing doc; this file is for development.
 ## Layout
 
 Mod files live at the repo root (standard NS2 layout). Load order is declared in
-`lua/entry/HiveSpawnSelection.entry` (`Client` / `Server` / `Predict` bootstraps + `Priority`).
+`lua/entry/SpawnSelector.entry` (`Client` / `Server` / `Predict` bootstraps + `Priority`).
 
-- `lua/HiveSpawnSelection/HiveSpawnSelection_Utility.lua` — vendored `Class_ReplaceMethod`; loaded first.
-- `lua/HiveSpawnSelection/HiveSpawnSelection_Shared.lua` — the two network messages (pick request,
-  team announcement), a shared `TechPoint` getter, `GameInfo` synced fields
-  (`spawnSelectionEnabled`, `spawnSelected`), and the countdown freeze. Loaded by client, server
-  **and** predict.
-- `lua/HiveSpawnSelection/HiveSpawnSelection_Server.lua` — all server logic (pick handler, both
+- `lua/SpawnSelector/SpawnSelector_Utility.lua` — vendored `Class_ReplaceMethod`; loaded first.
+- `lua/SpawnSelector/SpawnSelector_Shared.lua` — the two network messages (pick request, team
+  announcement), a shared `TechPoint` getter, `GameInfo` synced fields (`spawnSelectionEnabled`,
+  `spawnSelected`, `legalAlienSpawns`), and the countdown freeze. Loaded by client, server **and**
+  predict.
+- `lua/SpawnSelector/SpawnSelector_Server.lua` — all server logic (pick handler, both
   marine-selection mechanisms — vanilla and the optional CustomSpawns one, see below — the
   alien-team announcement, logout lock, `sv_spawnselect` admin toggle).
-- `lua/HiveSpawnSelection/HiveSpawnSelection_Client.lua` — attaches the UI to `AlienCommander`, and
-  renders the alien-team pick announcement as a chat message for every alien player.
-- `lua/HiveSpawnSelection/GUIHiveSpawnSelectionMenu.lua` — the "SELECT STARTING LOCATION" panel.
-- `lua/HiveSpawnSelection/HiveSpawnSelection_Predict.lua` — loads shared defs into the prediction VM.
-
-Naming: the mod's name is **Hive Spawn Selection** and file/class/network-message identifiers
-follow that. `sv_spawnselect` (the console command) and the internal `GameInfo` field names
-(`spawnSelectionEnabled`, `spawnSelected`, local vars like `kEnabled`) are deliberately left as
-generic descriptive names rather than renamed to match — that's an intentional, already-decided
-scope boundary, not an oversight.
+- `lua/SpawnSelector/SpawnSelector_Client.lua` — attaches the UI to `AlienCommander`, and renders
+  the alien-team pick announcement as a chat message for every alien player.
+- `lua/SpawnSelector/GUISpawnSelectionMenu.lua` — the "SELECT STARTING LOCATION" panel.
+- `lua/SpawnSelector/SpawnSelector_Predict.lua` — loads shared defs into the prediction VM.
 
 ## NS2 specifics worth knowing before changing things
 
@@ -60,14 +54,14 @@ scope boundary, not an oversight.
   **Predict** VM too, or the local player rubber-bands.
 - `Class_ReplaceMethod(class, name, fn)` returns the original for chaining and also replaces it on
   already-derived classes. Vanilla `TechPoint:GetTeamNumberAllowed()` is server-only — the shared
-  getter in `HiveSpawnSelection_Shared.lua` exists so client UI can call it.
+  getter in `SpawnSelector_Shared.lua` exists so client UI can call it.
 - **The alien-team pick announcement is a real chat message, not a UI-only sync.** The
   `spawnSelected` `GameInfo` field only reaches the commander's own client (it drives the
   commander-only picker UI, attached via `AddClientUIScriptForClass("AlienCommander", ...)`), so
-  it can't be used to notify the rest of the team. `HiveSpawnSelection_Server.lua`'s
-  `AnnounceSelection` instead sends a dedicated `HiveSpawnSelection_Announce` message directly to
+  it can't be used to notify the rest of the team. `SpawnSelector_Server.lua`'s
+  `AnnounceSelection` instead sends a dedicated `SpawnSelector_Announce` message directly to
   every player on `kTeam2Index` (via `GetEntitiesForTeam("Player", kTeam2Index)` +
-  `Server.GetOwner`), and `HiveSpawnSelection_Client.lua` renders it by hooking the global
+  `Server.GetOwner`), and `SpawnSelector_Client.lua` renders it by hooking the global
   `ChatUI_GetMessages()` and injecting a message in vanilla's `chatMessages` shape (color, header,
   color, text, isCommander, isRookie, 0, 0 — see `ns2/lua/Chat.lua`). Adapted from NSL's
   `NSLSendTeamMessage(kTeam2Index, ...)` / `NSLSystemMessage` chat injection
@@ -80,21 +74,21 @@ If Shine (`Person8880/Shine`) and its third-party `customspawns` plugin
 (`GhoulofGSG9/Shine-Epsilon`) both happen to be installed on the server *and* CustomSpawns has a
 config for the current map, this mod restricts the alien commander's picker to CustomSpawns'
 alien-legal locations and places marines using CustomSpawns' own legal pairings instead of the
-map's vanilla `spawn_selection_override` pairs. This is **not** achieved by converting this mod
-into a Shine extension — an earlier attempt at that (the `shine-extension` branch) was reverted
-because it made the mod harder to debug than the standalone form; don't redo that conversion.
-Instead, this mod stays exactly as it is and *opportunistically* reaches for Shine's globals if
-they happen to exist at runtime:
+map's vanilla `spawn_selection_override` pairs (the map's default allowed spawn combinations).
+This is **not** achieved by converting this mod into a Shine extension — that was tried and
+reverted because it made the mod harder to debug than the standalone form; don't redo that
+conversion. Instead, this mod stays exactly as it is and *opportunistically* reaches for Shine's
+globals if they happen to exist at runtime:
 
 - **Detection is lazy, not at file-load time.** `EnsureShineHooksRegistered` (in
-  `HiveSpawnSelection_Server.lua`) only runs from our own `NS2Gamerules:ResetGame` hook, not at
-  the top of the file — this mod and Shine are independent NS2 mods with no guaranteed load order,
-  so `Shine` might not exist yet when this file's top level executes. By the time a round actually
+  `SpawnSelector_Server.lua`) only runs from our own `NS2Gamerules:ResetGame` hook, not at the top
+  of the file — this mod and Shine are independent NS2 mods with no guaranteed load order, so
+  `Shine` might not exist yet when this file's top level executes. By the time a round actually
   resets, every server mod has finished loading, so it's safe to check there.
 - **We register directly into Shine's hook registry without becoming a Shine plugin.**
   `Shine.Hook.Add(Event, Index, Function, Priority)` accepts any caller, not just registered Shine
   plugins (`Person8880/Shine`'s `lua/shine/core/shared/hook.lua:106`) — so
-  `Shine.Hook.Add("PreChooseTechPoint", "HiveSpawnSelection", OnPreChooseTechPoint)` hooks into
+  `Shine.Hook.Add("PreChooseTechPoint", "SpawnSelector", OnPreChooseTechPoint)` hooks into
   CustomSpawns' own published `"PreChooseTechPoint"` event (fired from its
   `NS2Gamerules:ChooseTechPoint` override) with no `Shine.Plugin(...)` registration, no
   `lua/shine/extensions/` folder, and no admin-menu/plugin-config involvement at all.
@@ -102,8 +96,8 @@ they happen to exist at runtime:
   `Server.teamSpawnOverride` (and `Server.spawnSelectionOverrides`) on every `ResetGame` when it's
   active for the map — this happens purely because Shine + CustomSpawns are running on the server,
   regardless of whether *this* mod is itself a Shine plugin. Writing `teamSpawnOverride` in that
-  situation would just get silently undone, which is exactly the bug the original Shine-extension
-  work was built to fix.
+  situation would just get silently undone, which is exactly the bug this integration is built to
+  avoid.
 - **We read CustomSpawns' internal fields directly, not a published API**
   (`GetCustomSpawnsData()`): `Shine:IsExtensionEnabled("customspawns")` plus a populated
   `CustomSpawns.Spawns` table. `CustomSpawns.Spawns[lowerLocationName]` is the **TechPoint entity
@@ -144,21 +138,23 @@ Each of these looks like an oversight in review and is not. Confirmed by the mai
 - **`sv_spawnselect false` does not persist across a map change.** `kEnabled` is a module local
   and the Lua VM is rebuilt per map, so the mod returns to enabled. The supported way to disable
   it permanently is to remove the mod from the server.
-- **There is no debug logging in the shipped build.** The diagnostics were removed in `d2acfcb`
-  once the feature was verified. If a remote problem needs diagnosing, add them back behind a
-  `kDebug` flag (off by default) and keep the flag once it's fixed.
-- **Never run alongside NSL.** Its `customspawns` feature writes the same
-  `Server.teamSpawnOverride`, so the two mods fight over the spawn. This is documented for
-  admins in `README.md`; do not try to make them interoperate.
+- **There is no debug logging in the shipped build.** The `[SpawnSelector]`-prefixed diagnostics
+  were removed in `d2acfcb` once the feature was verified. If a remote problem needs diagnosing,
+  add them back behind a `kDebug` flag (off by default) and keep the flag once it's fixed.
+- **Never run alongside NSL.** Its `customspawns` feature (a *different*, unrelated `customspawns`
+  from the standalone NSL mod — not to be confused with Shine-Epsilon's `customspawns` plugin this
+  mod optionally integrates with) writes the same `Server.teamSpawnOverride`, so the two mods
+  fight over the spawn. This is documented for admins in `README.md`; do not try to make them
+  interoperate.
 - **This mod is not a Shine extension, on purpose, even though it optionally integrates with
-  Shine's CustomSpawns plugin.** A full Shine-extension conversion was built and reverted because
+  Shine's CustomSpawns plugin.** A full Shine-extension conversion was tried and reverted because
   it was harder to debug than the standalone form — see "Optional CustomSpawns integration" above
   for how the integration works without that conversion. Don't propose redoing it.
 
 ## Conventions
 
 - Match the surrounding file's indentation: the server/shared/client/utility files use **tabs**;
-  `GUIHiveSpawnSelectionMenu.lua` uses 4-space indent (kept from its NSL origin).
+  `GUISpawnSelectionMenu.lua` uses 4-space indent (kept from its NSL origin).
 - Gate new round-affecting behavior on the synced enable flag (`GameInfo:GetSpawnSelectionEnabled()`
   / the server-side `kEnabled`) so `sv_spawnselect false` reverts cleanly to vanilla.
 - Keep `README.md` user-facing; put developer notes here.

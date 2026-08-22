@@ -1,5 +1,5 @@
--- Hive Spawn Selection
--- lua/HiveSpawnSelection/HiveSpawnSelection_Shared.lua
+-- SpawnSelector
+-- lua/SpawnSelector/SpawnSelector_Shared.lua
 --
 -- Shared definitions: the spawn-selection network message and two synced GameInfo
 -- fields the commander UI reads (whether selection is enabled, and the currently
@@ -8,15 +8,15 @@
 -- GameInfo extension pattern adapted from the NSL plugin:
 -- https://github.com/xToken/NSL - lua/NSL/gameinfo/shared.lua - by Dragon
 
-Script.Load("lua/HiveSpawnSelection/HiveSpawnSelection_Utility.lua")
+Script.Load("lua/SpawnSelector/SpawnSelector_Utility.lua")
 
 -- Client -> Server: the alien commander's chosen tech point (-1 means "random / clear").
-Shared.RegisterNetworkMessage("HiveSpawnSelection_SelectSpawn", { techPointId = "entityid" })
+Shared.RegisterNetworkMessage("SpawnSelector_SelectSpawn", { techPointId = "entityid" })
 
 -- Server -> alien team: relays the commander's pick as a team chat message (-1 means the pick
--- was cleared / random). See HiveSpawnSelection_Server.lua's AnnounceSelection and
--- HiveSpawnSelection_Client.lua's OnAnnounceMessage.
-Shared.RegisterNetworkMessage("HiveSpawnSelection_Announce", { techPointId = "entityid" })
+-- was cleared / random). See SpawnSelector_Server.lua's AnnounceSelection and
+-- SpawnSelector_Client.lua's OnAnnounceMessage.
+Shared.RegisterNetworkMessage("SpawnSelector_Announce", { techPointId = "entityid" })
 
 -- Vanilla only defines TechPoint:GetTeamNumberAllowed() inside an "if Server then" block,
 -- so the method does not exist on the client even though the allowedTeamNumber networkVar is
@@ -31,7 +31,7 @@ local networkVars =
 	spawnSelected = "entityid",
 	-- Comma-separated lowercase location names of the alien-legal spawns for this round, as
 	-- decided by Shine's CustomSpawns plugin when it's present and configured for the current map
-	-- (see HiveSpawnSelection_Server.lua). Empty otherwise, in which case the client falls back to
+	-- (see SpawnSelector_Server.lua). Empty otherwise, in which case the client falls back to
 	-- GetTeamNumberAllowed().
 	legalAlienSpawns = "string (256)"
 }

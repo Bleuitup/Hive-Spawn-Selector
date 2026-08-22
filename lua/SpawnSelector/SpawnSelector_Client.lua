@@ -1,5 +1,5 @@
--- Hive Spawn Selection
--- lua/HiveSpawnSelection/HiveSpawnSelection_Client.lua
+-- SpawnSelector
+-- lua/SpawnSelector/SpawnSelector_Client.lua
 --
 -- Attaches the spawn-selection menu to the alien commander, and relays the commander's pick to
 -- every alien team member as a chat-style message ("Your commander has selected X as your
@@ -7,10 +7,10 @@
 -- without NSL's localization/message-id/league-name machinery - this mod only ships one message,
 -- in English.
 
-Script.Load("lua/HiveSpawnSelection/HiveSpawnSelection_Utility.lua")
-Script.Load("lua/HiveSpawnSelection/HiveSpawnSelection_Shared.lua")
+Script.Load("lua/SpawnSelector/SpawnSelector_Utility.lua")
+Script.Load("lua/SpawnSelector/SpawnSelector_Shared.lua")
 
-AddClientUIScriptForClass("AlienCommander", "HiveSpawnSelection/GUIHiveSpawnSelectionMenu")
+AddClientUIScriptForClass("AlienCommander", "SpawnSelector/GUISpawnSelectionMenu")
 
 local kAnnounceHeaderColor = Color(0.28, 0.36, 0.46, 1)
 local kAnnounceTextColor = Color(1, 1, 1, 1)
@@ -46,7 +46,7 @@ local function OnAnnounceMessage(message)
 	end
 
 	table.insert(queuedChatMessages, kAnnounceHeaderColor)
-	table.insert(queuedChatMessages, "(Hive Spawn Selection): ")
+	table.insert(queuedChatMessages, "(Spawn Selector): ")
 	table.insert(queuedChatMessages, kAnnounceTextColor)
 	table.insert(queuedChatMessages, text)
 	table.insert(queuedChatMessages, false)
@@ -58,4 +58,4 @@ local function OnAnnounceMessage(message)
 
 end
 
-Client.HookNetworkMessage("HiveSpawnSelection_Announce", OnAnnounceMessage)
+Client.HookNetworkMessage("SpawnSelector_Announce", OnAnnounceMessage)

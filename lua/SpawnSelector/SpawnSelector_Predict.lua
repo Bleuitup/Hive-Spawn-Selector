@@ -1,10 +1,10 @@
--- Hive Spawn Selection
--- lua/HiveSpawnSelection/HiveSpawnSelection_Predict.lua
+-- SpawnSelector
+-- lua/SpawnSelector/SpawnSelector_Predict.lua
 --
 -- Loads the shared defs into the client prediction VM. This is needed so the countdown
 -- freeze (the Player:GetCanControl and Player:UpdateViewAngles overrides in the shared file)
 -- is applied when the local player's movement is predicted, keeping it in sync with the
 -- server and avoiding rubber-banding / jitter while frozen.
 
-Script.Load("lua/HiveSpawnSelection/HiveSpawnSelection_Utility.lua")
-Script.Load("lua/HiveSpawnSelection/HiveSpawnSelection_Shared.lua")
+Script.Load("lua/SpawnSelector/SpawnSelector_Utility.lua")
+Script.Load("lua/SpawnSelector/SpawnSelector_Shared.lua")

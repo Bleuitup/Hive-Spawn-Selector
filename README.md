@@ -18,6 +18,9 @@ deliberate starting positions instead of the usual random spawns.
   maps that don't define spawn pairs), so the two teams never share a starting location.
 - The selection is highlighted in green and syncs to the alien team so everyone can see
   the chosen spot.
+- The whole alien team gets a chat message announcing the pick (e.g. "Your commander has
+  selected Reception as your spawn."), or that a random spawn will be used if the commander
+  clicks **Random Spawn** or picks somewhere that turns out to have no legal partner spawn.
 
 It also tightens up the start of the round:
 

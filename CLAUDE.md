@@ -19,12 +19,15 @@ Mod files live at the repo root (standard NS2 layout). Load order is declared in
 `lua/entry/HiveSpawnSelection.entry` (`Client` / `Server` / `Predict` bootstraps + `Priority`).
 
 - `lua/HiveSpawnSelection/HiveSpawnSelection_Utility.lua` — vendored `Class_ReplaceMethod`; loaded first.
-- `lua/HiveSpawnSelection/HiveSpawnSelection_Shared.lua` — network message, a shared `TechPoint` getter,
-  `GameInfo` synced fields (`spawnSelectionEnabled`, `spawnSelected`), and the countdown freeze.
-  Loaded by client, server **and** predict.
+- `lua/HiveSpawnSelection/HiveSpawnSelection_Shared.lua` — the two network messages (pick request,
+  team announcement), a shared `TechPoint` getter, `GameInfo` synced fields
+  (`spawnSelectionEnabled`, `spawnSelected`), and the countdown freeze. Loaded by client, server
+  **and** predict.
 - `lua/HiveSpawnSelection/HiveSpawnSelection_Server.lua` — all server logic (pick handler, marine selection,
-  the spawn-apply mechanism, logout lock, `sv_spawnselect` admin toggle).
-- `lua/HiveSpawnSelection/HiveSpawnSelection_Client.lua` — attaches the UI to `AlienCommander`.
+  the spawn-apply mechanism, the alien-team announcement, logout lock, `sv_spawnselect` admin
+  toggle).
+- `lua/HiveSpawnSelection/HiveSpawnSelection_Client.lua` — attaches the UI to `AlienCommander`, and
+  renders the alien-team pick announcement as a chat message for every alien player.
 - `lua/HiveSpawnSelection/GUIHiveSpawnSelectionMenu.lua` — the "SELECT STARTING LOCATION" panel.
 - `lua/HiveSpawnSelection/HiveSpawnSelection_Predict.lua` — loads shared defs into the prediction VM.
 
@@ -58,6 +61,18 @@ scope boundary, not an oversight.
 - `Class_ReplaceMethod(class, name, fn)` returns the original for chaining and also replaces it on
   already-derived classes. Vanilla `TechPoint:GetTeamNumberAllowed()` is server-only — the shared
   getter in `HiveSpawnSelection_Shared.lua` exists so client UI can call it.
+- **The alien-team pick announcement is a real chat message, not a UI-only sync.** The
+  `spawnSelected` `GameInfo` field only reaches the commander's own client (it drives the
+  commander-only picker UI, attached via `AddClientUIScriptForClass("AlienCommander", ...)`), so
+  it can't be used to notify the rest of the team. `HiveSpawnSelection_Server.lua`'s
+  `AnnounceSelection` instead sends a dedicated `HiveSpawnSelection_Announce` message directly to
+  every player on `kTeam2Index` (via `GetEntitiesForTeam("Player", kTeam2Index)` +
+  `Server.GetOwner`), and `HiveSpawnSelection_Client.lua` renders it by hooking the global
+  `ChatUI_GetMessages()` and injecting a message in vanilla's `chatMessages` shape (color, header,
+  color, text, isCommander, isRookie, 0, 0 — see `ns2/lua/Chat.lua`). Adapted from NSL's
+  `NSLSendTeamMessage(kTeam2Index, ...)` / `NSLSystemMessage` chat injection
+  (`lua/NSL/admincommands/server.lua`, `lua/NSL/messages/client.lua`), stripped of NSL's
+  localization/message-id/league-name machinery since this mod only ships one message in English.
 
 ## Deliberate behaviors — do not "fix" these
 

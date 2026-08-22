@@ -120,6 +120,20 @@ function GetCommanderLogoutAllowed()
 	return originalGetCommanderLogoutAllowed()
 end
 
+-- Relays the commander's pick to the whole alien team as a chat message (client.lua renders it),
+-- e.g. "Your commander has selected Reception as your spawn." Pass Entity.invalidId for the
+-- random/cleared case. Adapted from NSL's NSLSendTeamMessage(kTeam2Index, ...) calls in
+-- lua/NSL/customspawns/server.lua, without NSL's localization/message-id machinery.
+local function AnnounceSelection(techPointId)
+	local players = GetEntitiesForTeam("Player", kTeam2Index)
+	for _, player in ipairs(players) do
+		local client = Server.GetOwner(player)
+		if client then
+			Server.SendNetworkMessage(client, "HiveSpawnSelection_Announce", { techPointId = techPointId }, true)
+		end
+	end
+end
+
 local function OnSpawnSelectionMessage(client, message)
 
 	if not kEnabled or not client or not message then
@@ -151,10 +165,12 @@ local function OnSpawnSelectionMessage(client, message)
 		if gameInfo then
 			gameInfo:SetSelectedSpawn(tp:GetId())
 		end
+		AnnounceSelection(tp:GetId())
 	else
 		-- Random / clear request, an invalid id, or a pick we cannot pair a marine spawn with -
 		-- revert to vanilla selection rather than showing a choice we would not honour.
 		ClearSelectedSpawns()
+		AnnounceSelection(Entity.invalidId)
 	end
 
 end

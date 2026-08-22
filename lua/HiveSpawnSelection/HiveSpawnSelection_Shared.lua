@@ -13,6 +13,11 @@ Script.Load("lua/HiveSpawnSelection/HiveSpawnSelection_Utility.lua")
 -- Client -> Server: the alien commander's chosen tech point (-1 means "random / clear").
 Shared.RegisterNetworkMessage("HiveSpawnSelection_SelectSpawn", { techPointId = "entityid" })
 
+-- Server -> alien team: relays the commander's pick as a team chat message (-1 means the pick
+-- was cleared / random). See HiveSpawnSelection_Server.lua's AnnounceSelection and
+-- HiveSpawnSelection_Client.lua's OnAnnounceMessage.
+Shared.RegisterNetworkMessage("HiveSpawnSelection_Announce", { techPointId = "entityid" })
+
 -- Vanilla only defines TechPoint:GetTeamNumberAllowed() inside an "if Server then" block,
 -- so the method does not exist on the client even though the allowedTeamNumber networkVar is
 -- synced. Define a shared getter so the commander UI can read it client-side. (NSL does the same.)

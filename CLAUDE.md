@@ -13,12 +13,6 @@ The underlying approach is adapted from the **NSL** plugin by **Dragon (xToken)*
 <https://github.com/xToken/NSL>. Files that borrow from it credit it in their header. `README.md`
 is the user/server-admin facing doc; this file is for development.
 
-This is a **standalone NS2 mod**, not a Shine extension — an earlier `shine-extension` branch
-converted it into one (with an integration against Shine-Epsilon's CustomSpawns plugin so the
-alien commander could only pick spawns CustomSpawns already permitted per-map), but that approach
-was reverted: it made the mod harder to debug than the standalone form, which was already working
-correctly. Don't re-attempt that conversion without being asked again.
-
 ## Layout
 
 Mod files live at the repo root (standard NS2 layout). Load order is declared in

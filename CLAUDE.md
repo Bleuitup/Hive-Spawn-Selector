@@ -19,12 +19,15 @@ Mod files live at the repo root (standard NS2 layout). Load order is declared in
 `lua/entry/SpawnSelector.entry` (`Client` / `Server` / `Predict` bootstraps + `Priority`).
 
 - `lua/SpawnSelector/SpawnSelector_Utility.lua` — vendored `Class_ReplaceMethod`; loaded first.
-- `lua/SpawnSelector/SpawnSelector_Shared.lua` — network message, a shared `TechPoint` getter,
-  `GameInfo` synced fields (`spawnSelectionEnabled`, `spawnSelected`), and the countdown freeze.
-  Loaded by client, server **and** predict.
-- `lua/SpawnSelector/SpawnSelector_Server.lua` — all server logic (pick handler, marine selection,
-  the spawn-apply mechanism, logout lock, `sv_spawnselect` admin toggle).
-- `lua/SpawnSelector/SpawnSelector_Client.lua` — attaches the UI to `AlienCommander`.
+- `lua/SpawnSelector/SpawnSelector_Shared.lua` — the two network messages (pick request, team
+  announcement), a shared `TechPoint` getter, `GameInfo` synced fields (`spawnSelectionEnabled`,
+  `spawnSelected`, `legalAlienSpawns`), and the countdown freeze. Loaded by client, server **and**
+  predict.
+- `lua/SpawnSelector/SpawnSelector_Server.lua` — all server logic (pick handler, both
+  marine-selection mechanisms — vanilla and the optional CustomSpawns one, see below — the
+  alien-team announcement, logout lock, `sv_spawnselect` admin toggle).
+- `lua/SpawnSelector/SpawnSelector_Client.lua` — attaches the UI to `AlienCommander`, and renders
+  the alien-team pick announcement as a chat message for every alien player.
 - `lua/SpawnSelector/GUISpawnSelectionMenu.lua` — the "SELECT STARTING LOCATION" panel.
 - `lua/SpawnSelector/SpawnSelector_Predict.lua` — loads shared defs into the prediction VM.
 
@@ -52,6 +55,79 @@ Mod files live at the repo root (standard NS2 layout). Load order is declared in
 - `Class_ReplaceMethod(class, name, fn)` returns the original for chaining and also replaces it on
   already-derived classes. Vanilla `TechPoint:GetTeamNumberAllowed()` is server-only — the shared
   getter in `SpawnSelector_Shared.lua` exists so client UI can call it.
+- **The alien-team pick announcement is a real chat message, not a UI-only sync.** The
+  `spawnSelected` `GameInfo` field only reaches the commander's own client (it drives the
+  commander-only picker UI, attached via `AddClientUIScriptForClass("AlienCommander", ...)`), so
+  it can't be used to notify the rest of the team. `SpawnSelector_Server.lua`'s
+  `AnnounceSelection` instead sends a dedicated `SpawnSelector_Announce` message directly to
+  every player on `kTeam2Index` (via `GetEntitiesForTeam("Player", kTeam2Index)` +
+  `Server.GetOwner`), and `SpawnSelector_Client.lua` renders it by hooking the global
+  `ChatUI_GetMessages()` and injecting a message in vanilla's `chatMessages` shape (color, header,
+  color, text, isCommander, isRookie, 0, 0 — see `ns2/lua/Chat.lua`). Adapted from NSL's
+  `NSLSendTeamMessage(kTeam2Index, ...)` / `NSLSystemMessage` chat injection
+  (`lua/NSL/admincommands/server.lua`, `lua/NSL/messages/client.lua`), stripped of NSL's
+  localization/message-id/league-name machinery since this mod only ships one message in English.
+
+## Optional CustomSpawns integration (this mod is still standalone)
+
+If Shine (`Person8880/Shine`) and its third-party `customspawns` plugin
+(`GhoulofGSG9/Shine-Epsilon`) both happen to be installed on the server *and* CustomSpawns has a
+config for the current map, this mod restricts the alien commander's picker to CustomSpawns'
+alien-legal locations and places marines using CustomSpawns' own legal pairings instead of the
+map's vanilla `spawn_selection_override` pairs (the map's default allowed spawn combinations).
+This is **not** achieved by converting this mod into a Shine extension — that was tried and
+reverted because it made the mod harder to debug than the standalone form; don't redo that
+conversion. Instead, this mod stays exactly as it is and *opportunistically* reaches for Shine's
+globals if they happen to exist at runtime:
+
+- **Detection is lazy, not at file-load time.** `EnsureShineHooksRegistered` (in
+  `SpawnSelector_Server.lua`) only runs from our own `NS2Gamerules:ResetGame` hook, not at the top
+  of the file — this mod and Shine are independent NS2 mods with no guaranteed load order, so
+  `Shine` might not exist yet when this file's top level executes. By the time a round actually
+  resets, every server mod has finished loading, so it's safe to check there.
+- **We register directly into Shine's hook registry without becoming a Shine plugin.**
+  `Shine.Hook.Add(Event, Index, Function, Priority)` accepts any caller, not just registered Shine
+  plugins (`Person8880/Shine`'s `lua/shine/core/shared/hook.lua:106`) — so
+  `Shine.Hook.Add("PreChooseTechPoint", "SpawnSelector", OnPreChooseTechPoint)` hooks into
+  CustomSpawns' own published `"PreChooseTechPoint"` event (fired from its
+  `NS2Gamerules:ChooseTechPoint` override) with no `Shine.Plugin(...)` registration, no
+  `lua/shine/extensions/` folder, and no admin-menu/plugin-config involvement at all.
+- **Why we can't just use `Server.teamSpawnOverride` here too:** CustomSpawns clears
+  `Server.teamSpawnOverride` (and `Server.spawnSelectionOverrides`) on every `ResetGame` when it's
+  active for the map — this happens purely because Shine + CustomSpawns are running on the server,
+  regardless of whether *this* mod is itself a Shine plugin. Writing `teamSpawnOverride` in that
+  situation would just get silently undone, which is exactly the bug this integration is built to
+  avoid.
+- **We read CustomSpawns' internal fields directly, not a published API**
+  (`GetCustomSpawnsData()`): `Shine:IsExtensionEnabled("customspawns")` plus a populated
+  `CustomSpawns.Spawns` table. `CustomSpawns.Spawns[lowerLocationName]` is the **TechPoint entity
+  itself**, decorated by CustomSpawns with `.team` (0=both, 1=marines, 2=aliens, 3=none) and
+  `.enemyspawns` (array of legal partner location names) — see `GhoulofGSG9/Shine-Epsilon`'s
+  `lua/shine/extensions/customspawns.lua`. This is a real coupling to another project's internal
+  field names, not a documented API: if CustomSpawns ever renames these, `GetCustomSpawnsData()`
+  starts returning `nil` and this integration silently falls back to vanilla-pair behavior rather
+  than erroring — fails safe, not loud.
+- **CustomSpawns' map config is not always symmetric.** Don't read
+  `CustomSpawns.Spawns[alienName].enemyspawns` to find the marine partner — some of CustomSpawns'
+  own map configs only declare `enemyspawns` on the marine side (e.g. `ns2_docking`'s single alien
+  spot has none of its own even though its marine partner lists it). `PickMarineSpawnFromCustomSpawns`
+  instead scans every marine-eligible entry for one whose `enemyspawns` lists the alien's location.
+- **Plugin/mod load order does not matter here**, despite Shine auto-wiring same-named hook
+  methods (for registered plugins) in alphabetical-by-plugin-name order for ties, and despite our
+  own registration being lazy. Reason: CustomSpawns' own `:PreChooseTechPoint` only ever returns
+  non-nil for the **aliens** call, and only if its own `:PostChooseTechPoint` already ran earlier
+  in the **same** `ResetGame` (from a preceding marines call) to set `self.ValidAlienSpawn`. Since
+  our `OnPreChooseTechPoint` answers the **marines** call itself whenever we have an active
+  CustomSpawns-driven pick — short-circuiting the whole `ChooseTechPoint` call before CustomSpawns'
+  `:PostChooseTechPoint` can run — `self.ValidAlienSpawn` never gets set, so CustomSpawns' own
+  handler is a guaranteed no-op for the subsequent aliens call regardless of which listener fires
+  first. Do not "fix" this by adding explicit hook priorities; it isn't needed.
+- **The new `NS2Gamerules:ResetGame` hook composes correctly with Shine's own hook on the same
+  method** (Shine core wraps `ResetGame` too, if installed) because both hooking mechanisms —
+  our vendored `Class_ReplaceMethod` and Shine's codegen'd class hooks — capture and chain to
+  whatever was in the method slot at their own install time, the standard NS2 monkey-patch-chain
+  pattern. This is why `EnsureShineHooksRegistered()`/`SyncLegalAlienSpawns()` are placed before/
+  after `originalResetGame(self)` respectively rather than assuming anything about install order.
 
 ## Deliberate behaviors — do not "fix" these
 
@@ -65,9 +141,15 @@ Each of these looks like an oversight in review and is not. Confirmed by the mai
 - **There is no debug logging in the shipped build.** The `[SpawnSelector]`-prefixed diagnostics
   were removed in `d2acfcb` once the feature was verified. If a remote problem needs diagnosing,
   add them back behind a `kDebug` flag (off by default) and keep the flag once it's fixed.
-- **Never run alongside NSL.** Its `customspawns` feature writes the same
-  `Server.teamSpawnOverride`, so the two mods fight over the spawn. This is documented for
-  admins in `README.md`; do not try to make them interoperate.
+- **Never run alongside NSL.** Its `customspawns` feature (a *different*, unrelated `customspawns`
+  from the standalone NSL mod — not to be confused with Shine-Epsilon's `customspawns` plugin this
+  mod optionally integrates with) writes the same `Server.teamSpawnOverride`, so the two mods
+  fight over the spawn. This is documented for admins in `README.md`; do not try to make them
+  interoperate.
+- **This mod is not a Shine extension, on purpose, even though it optionally integrates with
+  Shine's CustomSpawns plugin.** A full Shine-extension conversion was tried and reverted because
+  it was harder to debug than the standalone form — see "Optional CustomSpawns integration" above
+  for how the integration works without that conversion. Don't propose redoing it.
 
 ## Conventions
 

@@ -2,8 +2,27 @@
 -- lua/SpawnSelector/SpawnSelector_Server.lua
 --
 -- Server logic: the alien commander picks a starting tech point; the marines are given a
--- random legal partner spawn for it. The pick is applied at round start via
--- Server.teamSpawnOverride, the highest-priority spawn path in NS2Gamerules:ResetGame.
+-- random legal partner spawn for it.
+--
+-- Two placement mechanisms, chosen per pick depending on whether Shine's CustomSpawns plugin
+-- (github.com/GhoulofGSG9/Shine-Epsilon) happens to also be running on this server and is
+-- configured for the current map - this mod stays a standalone mod either way; it never depends
+-- on Shine being present, it just cooperates with it opportunistically when it is. See
+-- CLAUDE.md for the full reasoning.
+--
+-- - CustomSpawns active: placement is applied by answering CustomSpawns' own "PreChooseTechPoint"
+--   Shine hook (fired from its NS2Gamerules:ChooseTechPoint override) rather than by writing
+--   Server.teamSpawnOverride - CustomSpawns clears that global on every ResetGame when it's active
+--   for the map (this happens regardless of whether we're a Shine plugin ourselves), so writing it
+--   here would be silently undone. The legal alien spawn list and the legal marine partner for a
+--   pick both come from CustomSpawns' own per-map config (Shine.Plugins.customspawns.Spawns), so
+--   aliens can only ever start somewhere CustomSpawns already permits.
+--
+-- - CustomSpawns absent, or present but not configured for this map: the original mechanism -
+--   Server.teamSpawnOverride, the highest-priority spawn path in NS2Gamerules:ResetGame (checked
+--   before Server.spawnSelectionOverrides and before ChooseTechPoint), with the marine partner
+--   picked randomly from the map's own spawn_selection_override pairs (the default map spawn
+--   combinations).
 --
 -- Adapted from the NSL plugin:
 -- https://github.com/xToken/NSL - lua/NSL/customspawns/server.lua - by Dragon
@@ -14,10 +33,15 @@ Script.Load("lua/SpawnSelector/SpawnSelector_Shared.lua")
 local kEnabled = true
 local kSelectedMarineSpawn
 local kSelectedAlienSpawn
+-- True when the current pick is being placed via the CustomSpawns PreChooseTechPoint hook rather
+-- than Server.teamSpawnOverride - keeps the two placement mechanisms from ever both being "live"
+-- for the same pick.
+local kUsingCustomSpawnsOverride = false
 
 local function ClearSelectedSpawns()
 	kSelectedMarineSpawn = nil
 	kSelectedAlienSpawn = nil
+	kUsingCustomSpawnsOverride = false
 	Server.teamSpawnOverride = nil
 	local gameInfo = GetGameInfoEntity()
 	if gameInfo then
@@ -25,15 +49,16 @@ local function ClearSelectedSpawns()
 	end
 end
 
--- Apply the alien commander's pick via Server.teamSpawnOverride - the highest-priority spawn
--- mechanism in NS2Gamerules:ResetGame (checked before Server.spawnSelectionOverrides and before
+-- Apply the alien commander's pick via Server.teamSpawnOverride - see the file header for when
+-- this path is used instead of the CustomSpawns hook. The highest-priority spawn mechanism in
+-- NS2Gamerules:ResetGame (checked before Server.spawnSelectionOverrides and before
 -- ChooseTechPoint). Many competitive servers/maps populate Server.spawnSelectionOverrides with
 -- fixed spawn pairs, which silently bypassed our earlier ChooseTechPoint override - that was the
 -- cause of "picked X but spawned at Y". teamSpawnOverride wins over those, and is non-destructive:
 -- we don't have to wipe the map's pairs, which still apply when there is no pick (random). Names
 -- must be lowercase to match the comparison ResetGame does.
 local function ApplyTeamSpawnOverride()
-	if kEnabled and kSelectedAlienSpawn and kSelectedMarineSpawn then
+	if kEnabled and not kUsingCustomSpawnsOverride and kSelectedAlienSpawn and kSelectedMarineSpawn then
 		Server.teamSpawnOverride = { {
 			marineSpawn = string.lower(kSelectedMarineSpawn:GetLocationName()),
 			alienSpawn = string.lower(kSelectedAlienSpawn:GetLocationName())
@@ -61,15 +86,57 @@ local function ResolveTechPointByName(lowerName)
 	return nil
 end
 
--- Pick a random VALID marine tech point for the alien's chosen hive. Maps define their legal
--- opposing start pairs via 'spawn_selection_override' map entities (Server.spawnSelectionOverrides),
--- so we pick randomly among the marine spawns the map pairs with the alien's pick. This keeps the
--- result both random AND a legal pairing - an illegal pairing makes ResetGame reject our override
--- and fall back to a random map pair (the "picked Smelting, marines got Turbine in the log but
--- spawned at Flow" case). If the map has no pair data, fall back to any random tech point that
--- isn't the alien's. Uses math.random (the old techPointRandomizer:random call kept returning the
--- first tech point, so the marine spawn was effectively fixed).
-local function PickMarineSpawn(alienTechPoint)
+-- Returns Shine's CustomSpawns plugin's per-map spawn table (Spawns[lowerLocationName] -> the
+-- TechPoint entity itself, decorated with .team and .enemyspawns fields) when Shine is present on
+-- this server, CustomSpawns is loaded and enabled, AND it has finished parsing a config for the
+-- current map - nil in every other case (Shine not installed, CustomSpawns not installed,
+-- disabled, or no config for this map), which is exactly when we should fall back to the vanilla
+-- Server.teamSpawnOverride path with the map's default spawn combinations. See CLAUDE.md for why
+-- this alignment holds.
+local function GetCustomSpawnsData()
+	if not (Shine and Shine.IsExtensionEnabled) then
+		return nil
+	end
+	local IsEnabled, CustomSpawns = Shine:IsExtensionEnabled("customspawns")
+	if IsEnabled and CustomSpawns.Spawns then
+		return CustomSpawns.Spawns
+	end
+	return nil
+end
+
+-- Pick a random VALID marine tech point for the alien's chosen hive, using CustomSpawns' own
+-- per-map legality data. Scans every marine-eligible entry for one whose enemyspawns lists the
+-- alien's location, rather than trusting the alien entry's own enemyspawns field - CustomSpawns'
+-- map configs aren't always filled in on both sides (e.g. ns2_docking's single alien spot has no
+-- enemyspawns of its own even though its marine partner lists it), so only this direction is
+-- reliable.
+local function PickMarineSpawnFromCustomSpawns(spawns, alienTechPoint)
+	local alienName = string.lower(alienTechPoint:GetLocationName())
+	local validMarineSpawns = { }
+
+	for name, data in pairs(spawns) do
+		if type(name) == "string" and (data.team == 0 or data.team == kTeam1Index) and data.enemyspawns then
+			for _, partner in ipairs(data.enemyspawns) do
+				if string.lower(partner) == alienName then
+					table.insert(validMarineSpawns, data)
+					break
+				end
+			end
+		end
+	end
+
+	if #validMarineSpawns > 0 then
+		return validMarineSpawns[math.random(#validMarineSpawns)]
+	end
+	return nil
+end
+
+-- Pick a random VALID marine tech point for the alien's chosen hive using the vanilla map's own
+-- spawn_selection_override pairs (Server.spawnSelectionOverrides) - the map's default allowed
+-- spawn combinations, common on competitive maps. Falls back to any other tech point on maps that
+-- don't define pairs. Uses math.random (the old techPointRandomizer:random call kept returning
+-- the first tech point, so the marine spawn was effectively fixed).
+local function PickMarineSpawnVanilla(alienTechPoint)
 
 	local alienName = string.lower(alienTechPoint:GetLocationName())
 
@@ -103,6 +170,71 @@ local function PickMarineSpawn(alienTechPoint)
 
 end
 
+-- Answers CustomSpawns' published "PreChooseTechPoint" Shine hook (see file header) - only when
+-- the current pick is being placed through CustomSpawns. Registered defensively via
+-- EnsureShineHooksRegistered below, never invoked at all when Shine/CustomSpawns aren't present.
+local function OnPreChooseTechPoint(gamerules, techPoints, teamNumber)
+	if not kEnabled or not kUsingCustomSpawnsOverride then return end
+
+	if teamNumber == kTeam1Index and kSelectedMarineSpawn then
+		return kSelectedMarineSpawn
+	elseif teamNumber == kTeam2Index and kSelectedAlienSpawn then
+		return kSelectedAlienSpawn
+	end
+end
+
+-- Registers our PreChooseTechPoint listener directly with Shine's hook registry (Shine.Hook.Add
+-- takes any caller, not just registered Shine plugins - we deliberately do NOT convert this mod
+-- into a real Shine extension for this, see CLAUDE.md). Done lazily from the ResetGame hook below
+-- rather than at file-load time: this mod's entry script and Shine's mod (if installed at all) load
+-- as independent NS2 mods with no guaranteed order, so `Shine` might not exist yet when this file's
+-- top level runs. By the time a round actually resets, every server mod has finished loading.
+local kShineHooksRegistered = false
+local function EnsureShineHooksRegistered()
+	if kShineHooksRegistered then return end
+	if not (Shine and Shine.Hook and Shine.Hook.Add) then return end
+	Shine.Hook.Add("PreChooseTechPoint", "SpawnSelector", OnPreChooseTechPoint)
+	kShineHooksRegistered = true
+end
+
+-- Recomputes the legal-alien-spawn list synced to clients (see SpawnSelector_Shared.lua /
+-- GUISpawnSelectionMenu.lua). CustomSpawns lazily parses its map config from its own
+-- "OnGameReset" handler, itself triggered by the same underlying NS2Gamerules:ResetGame call this
+-- runs from - since this runs AFTER originalResetGame() below, CustomSpawns (if present) has
+-- already had a chance to parse this map's config by the time we read its data, regardless of
+-- which of our two independent method-hooks on ResetGame happens to wrap the other.
+local function SyncLegalAlienSpawns()
+	local gameInfo = GetGameInfoEntity()
+	if not gameInfo then return end
+
+	local customSpawnsData = GetCustomSpawnsData()
+	if not customSpawnsData then
+		gameInfo:SetLegalAlienSpawns("")
+		return
+	end
+
+	local legalNames = { }
+	for name, data in pairs(customSpawnsData) do
+		if type(name) == "string" and (data.team == 0 or data.team == kTeam2Index) then
+			table.insert(legalNames, name)
+		end
+	end
+	gameInfo:SetLegalAlienSpawns(table.concat(legalNames, ","))
+end
+
+-- EnsureShineHooksRegistered must run BEFORE the real ResetGame logic, since that's what actually
+-- calls ChooseTechPoint (and so Shine.Hook.Call("PreChooseTechPoint", ...)) for this round -
+-- SyncLegalAlienSpawns must run AFTER it, since that's what gives CustomSpawns a chance to parse
+-- its map config first.
+local originalResetGame
+originalResetGame = Class_ReplaceMethod("NS2Gamerules", "ResetGame",
+	function(self)
+		EnsureShineHooksRegistered()
+		originalResetGame(self)
+		SyncLegalAlienSpawns()
+	end
+)
+
 -- Block the commander from voluntarily leaving the chair during the final countdown. The logout
 -- button, the Exit key, and the "logout" console command all route through OnCommandLogout, which
 -- checks GetCommanderLogoutAllowed(). A forced Eject() / disconnect calls Commander:Logout()
@@ -118,6 +250,20 @@ function GetCommanderLogoutAllowed()
 		end
 	end
 	return originalGetCommanderLogoutAllowed()
+end
+
+-- Relays the commander's pick to the whole alien team as a chat message (client.lua renders it),
+-- e.g. "Your commander has selected Reception as your spawn." Pass Entity.invalidId for the
+-- random/cleared case. Adapted from NSL's NSLSendTeamMessage(kTeam2Index, ...) calls in
+-- lua/NSL/customspawns/server.lua, without NSL's localization/message-id machinery.
+local function AnnounceSelection(techPointId)
+	local players = GetEntitiesForTeam("Player", kTeam2Index)
+	for _, player in ipairs(players) do
+		local client = Server.GetOwner(player)
+		if client then
+			Server.SendNetworkMessage(client, "SpawnSelector_Announce", { techPointId = techPointId }, true)
+		end
+	end
 end
 
 local function OnSpawnSelectionMessage(client, message)
@@ -137,24 +283,64 @@ local function OnSpawnSelectionMessage(client, message)
 	end
 
 	local tp = Shared.GetEntity(message.techPointId)
-	local marineTechPoint = tp and tp:isa("TechPoint")
-		and (tp:GetTeamNumberAllowed() == 0 or tp:GetTeamNumberAllowed() == kTeam2Index)
-		and PickMarineSpawn(tp)
+	if not (tp and tp:isa("TechPoint")) then
+		ClearSelectedSpawns()
+		AnnounceSelection(Entity.invalidId)
+		return
+	end
+
+	local customSpawnsData = GetCustomSpawnsData()
+
+	if customSpawnsData then
+		-- CustomSpawns is present and configured for this map: aliens may only pick a location
+		-- it marks alien-legal, and the marine partner comes from its own pairing data.
+		local name = string.lower(tp:GetLocationName())
+		local spawnInfo = customSpawnsData[name]
+		local alienEligible = spawnInfo and (spawnInfo.team == 0 or spawnInfo.team == kTeam2Index)
+		local marineTechPoint = alienEligible and PickMarineSpawnFromCustomSpawns(customSpawnsData, tp)
+
+		if marineTechPoint then
+			kSelectedAlienSpawn = tp
+			kSelectedMarineSpawn = marineTechPoint
+			kUsingCustomSpawnsOverride = true
+			Server.teamSpawnOverride = nil
+			local gameInfo = GetGameInfoEntity()
+			if gameInfo then
+				gameInfo:SetSelectedSpawn(tp:GetId())
+			end
+			AnnounceSelection(tp:GetId())
+		else
+			-- Not alien-legal under CustomSpawns, or no legal marine partner: do not show a
+			-- choice we would not honour.
+			ClearSelectedSpawns()
+			AnnounceSelection(Entity.invalidId)
+		end
+
+		return
+	end
+
+	-- Vanilla fallback path (CustomSpawns absent, or not configured for this map) - the map's
+	-- default allowed spawn combinations.
+	local marineTechPoint = (tp:GetTeamNumberAllowed() == 0 or tp:GetTeamNumberAllowed() == kTeam2Index)
+		and PickMarineSpawnVanilla(tp)
 
 	if marineTechPoint then
 		-- Valid alien-allowed pick with a legal marine partner: cache both and install the
 		-- override so it actually wins at round start.
 		kSelectedAlienSpawn = tp
 		kSelectedMarineSpawn = marineTechPoint
+		kUsingCustomSpawnsOverride = false
 		ApplyTeamSpawnOverride()
 		local gameInfo = GetGameInfoEntity()
 		if gameInfo then
 			gameInfo:SetSelectedSpawn(tp:GetId())
 		end
+		AnnounceSelection(tp:GetId())
 	else
 		-- Random / clear request, an invalid id, or a pick we cannot pair a marine spawn with -
 		-- revert to vanilla selection rather than showing a choice we would not honour.
 		ClearSelectedSpawns()
+		AnnounceSelection(Entity.invalidId)
 	end
 
 end

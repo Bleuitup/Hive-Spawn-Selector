@@ -26,17 +26,47 @@ local kSelectionDelay = 1
 local kMaxSpawnOptions = 9
 local kRandomOption = kMaxSpawnOptions + 1
 
+-- When the server has synced a CustomSpawns-derived legal-spawn list (see
+-- SpawnSelector_Server.lua), returns a set of lowercase location names to restrict the picker
+-- to. Returns nil when no such list is active (CustomSpawns absent, or not configured for this
+-- map), meaning "no restriction beyond the vanilla GetTeamNumberAllowed() check" - the original
+-- behaviour.
+local function GetLegalAlienNameSet(gameInfo)
+
+    local raw = gameInfo:GetLegalAlienSpawns()
+    if not raw or raw == "" then
+        return nil
+    end
+
+    local set = { }
+    for name in string.gmatch(raw, "[^,]+") do
+        set[name] = true
+    end
+    return set
+
+end
+
 local function GetRelevantTechPoints()
 
     local gameInfo = GetGameInfoEntity()
     local selectedIndex = kRandomOption
     if gameInfo and gameInfo:GetSpawnSelectionEnabled() then
+        local legalNames = GetLegalAlienNameSet(gameInfo)
         local allowableSpawns = { }
         local techPoints = EntityListToTable(Shared.GetEntitiesWithClassname("TechPoint"))
         for _, currentTechPoint in ipairs(techPoints) do
-            local teamNumberAllowed = currentTechPoint:GetTeamNumberAllowed()
-            if (teamNumberAllowed == 0 or teamNumberAllowed == kTeam2Index) and #allowableSpawns < kMaxSpawnOptions then
-                table.insert(allowableSpawns, currentTechPoint:GetLocationName())
+            local locationName = currentTechPoint:GetLocationName()
+
+            local isLegal
+            if legalNames then
+                isLegal = legalNames[string.lower(locationName)] == true
+            else
+                local teamNumberAllowed = currentTechPoint:GetTeamNumberAllowed()
+                isLegal = teamNumberAllowed == 0 or teamNumberAllowed == kTeam2Index
+            end
+
+            if isLegal and #allowableSpawns < kMaxSpawnOptions then
+                table.insert(allowableSpawns, locationName)
                 if currentTechPoint:GetId() == gameInfo:GetSelectedSpawn() then
                     selectedIndex = #allowableSpawns
                 end

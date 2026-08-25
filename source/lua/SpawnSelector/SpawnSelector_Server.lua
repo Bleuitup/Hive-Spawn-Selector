@@ -30,6 +30,20 @@
 Script.Load("lua/SpawnSelector/SpawnSelector_Utility.lua")
 Script.Load("lua/SpawnSelector/SpawnSelector_Shared.lua")
 
+-- Server admin config: config://SpawnSelectorConfig.json, written with these defaults the first
+-- time the mod runs on a server. Loaded once at mod load - edits need a map change or server
+-- restart to take effect, the usual convention for NS2 mod config files (see LoadConfigFile in
+-- core/lua/ConfigFileUtility.lua).
+local kDefaultConfig = {
+	-- true (default): the whole alien team is sent "Your commander has selected X as your
+	-- spawn." false: only the commander who made the pick sees it. Matters on servers where
+	-- teams are shuffled and the round starts immediately after commanders sit down - the whole
+	-- team seeing the message that fast spoils the pick as a surprise for round start, which
+	-- doesn't happen on servers where teams are set well before everyone readies up.
+	AnnounceToWholeTeam = true
+}
+local kConfig = LoadConfigFile("SpawnSelectorConfig.json", kDefaultConfig, true)
+
 local kEnabled = true
 local kSelectedMarineSpawn
 local kSelectedAlienSpawn
@@ -252,17 +266,22 @@ function GetCommanderLogoutAllowed()
 	return originalGetCommanderLogoutAllowed()
 end
 
--- Relays the commander's pick to the whole alien team as a chat message (client.lua renders it),
--- e.g. "Your commander has selected Reception as your spawn." Pass Entity.invalidId for the
--- random/cleared case. Adapted from NSL's NSLSendTeamMessage(kTeam2Index, ...) calls in
--- lua/NSL/customspawns/server.lua, without NSL's localization/message-id machinery.
-local function AnnounceSelection(techPointId)
-	local players = GetEntitiesForTeam("Player", kTeam2Index)
-	for _, player in ipairs(players) do
-		local client = Server.GetOwner(player)
-		if client then
-			Server.SendNetworkMessage(client, "SpawnSelector_Announce", { techPointId = techPointId }, true)
+-- Relays the commander's pick as a chat message (client.lua renders it), e.g. "Your commander
+-- has selected Reception as your spawn." Pass Entity.invalidId for the random/cleared case, and
+-- the picking commander's own client so the commander-only mode (kConfig.AnnounceToWholeTeam ==
+-- false) has someone to send it to. Adapted from NSL's NSLSendTeamMessage(kTeam2Index, ...) calls
+-- in lua/NSL/customspawns/server.lua, without NSL's localization/message-id machinery.
+local function AnnounceSelection(techPointId, commanderClient)
+	if kConfig.AnnounceToWholeTeam then
+		local players = GetEntitiesForTeam("Player", kTeam2Index)
+		for _, player in ipairs(players) do
+			local client = Server.GetOwner(player)
+			if client then
+				Server.SendNetworkMessage(client, "SpawnSelector_Announce", { techPointId = techPointId }, true)
+			end
 		end
+	elseif commanderClient then
+		Server.SendNetworkMessage(commanderClient, "SpawnSelector_Announce", { techPointId = techPointId }, true)
 	end
 end
 
@@ -285,7 +304,7 @@ local function OnSpawnSelectionMessage(client, message)
 	local tp = Shared.GetEntity(message.techPointId)
 	if not (tp and tp:isa("TechPoint")) then
 		ClearSelectedSpawns()
-		AnnounceSelection(Entity.invalidId)
+		AnnounceSelection(Entity.invalidId, client)
 		return
 	end
 
@@ -308,12 +327,12 @@ local function OnSpawnSelectionMessage(client, message)
 			if gameInfo then
 				gameInfo:SetSelectedSpawn(tp:GetId())
 			end
-			AnnounceSelection(tp:GetId())
+			AnnounceSelection(tp:GetId(), client)
 		else
 			-- Not alien-legal under CustomSpawns, or no legal marine partner: do not show a
 			-- choice we would not honour.
 			ClearSelectedSpawns()
-			AnnounceSelection(Entity.invalidId)
+			AnnounceSelection(Entity.invalidId, client)
 		end
 
 		return
@@ -335,12 +354,12 @@ local function OnSpawnSelectionMessage(client, message)
 		if gameInfo then
 			gameInfo:SetSelectedSpawn(tp:GetId())
 		end
-		AnnounceSelection(tp:GetId())
+		AnnounceSelection(tp:GetId(), client)
 	else
 		-- Random / clear request, an invalid id, or a pick we cannot pair a marine spawn with -
 		-- revert to vanilla selection rather than showing a choice we would not honour.
 		ClearSelectedSpawns()
-		AnnounceSelection(Entity.invalidId)
+		AnnounceSelection(Entity.invalidId, client)
 	end
 
 end

@@ -20,9 +20,11 @@ deliberate starting positions instead of the usual random spawns.
   maps that don't define spawn pairs), so the two teams never share a starting location.
 - The selection is highlighted in green and syncs to the alien team so everyone can see
   the chosen spot.
-- The whole alien team gets a chat message announcing the pick (e.g. "Your commander has
-  selected Reception as your spawn."), or that a random spawn will be used if the commander
-  clicks **Random Spawn** or picks somewhere that turns out to have no legal partner spawn.
+- The alien team gets a chat message announcing the pick (e.g. "Your commander has selected
+  Reception as your spawn."), or that a random spawn will be used if the commander clicks
+  **Random Spawn** or picks somewhere that turns out to have no legal partner spawn. By default
+  this goes to the whole team; see **Server admin** below to send it to the commander only
+  instead.
 
 It also tightens up the start of the round:
 
@@ -68,6 +70,28 @@ Two things worth knowing about the toggle:
   relying on the console command.
 - An admin **`sv_reset` keeps the current selection**, so a reset scrim restarts on the same
   agreed spawns. Click **Random Spawn** first if you want the reset round placed normally.
+
+### Who sees the pick announcement
+
+By default, the whole alien team gets the "Your commander has selected X as your spawn." chat
+message. On servers where teams are locked in and everyone's ready well before the round starts,
+that's harmless — by the time it matters, the team would see the pick on the panel anyway.
+
+On servers where teams are shuffled right as commanders sit down and the round starts almost
+immediately after, that same team-wide message can spoil the pick as a surprise before the round
+even begins. If that's your server, edit `configs/SpawnSelectorConfig.json` (created automatically
+the first time the mod runs) and set:
+
+```json
+{
+    "AnnounceToWholeTeam": false
+}
+```
+
+This sends the announcement to the picking commander only — nobody else on the team sees it in
+chat. Everything else (the picker UI, the green highlight, the actual spawn placement) is
+unaffected either way. This setting is read once per map load, so a map change or server restart
+is needed after editing it.
 
 ## Compatibility
 

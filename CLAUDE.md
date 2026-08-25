@@ -15,8 +15,29 @@ is the user/server-admin facing doc; this file is for development.
 
 ## Layout
 
-Mod files live at the repo root (standard NS2 layout). Load order is declared in
-`lua/entry/SpawnSelector.entry` (`Client` / `Server` / `Predict` bootstraps + `Priority`).
+Standard NS2 Launch Pad project layout, matching the author's other mods: `mod.settings` and
+`preview.jpg` sit one level **above** the mod content, which lives under `source/`.
+
+```
+mod.settings                                  workshop metadata
+preview.jpg                                   workshop preview
+source/lua/entry/SpawnSelector.entry          Client / Server / Predict bootstraps + Priority
+source/lua/SpawnSelector/*.lua
+output/                                       Launch Pad build output, gitignored
+```
+
+`source/` is stripped at build time, so runtime paths are `lua/...` — which is why the entry
+file's own `Client = "lua/SpawnSelector/SpawnSelector_Client.lua"` (and every `Script.Load` inside
+the Lua files) is correct as written, unprefixed with `source/`. **Do not** add `source/` to any
+path inside the Lua or the entry file.
+
+**`output/` is gitignored and must be built before publishing.** A fresh clone has none. There is
+no compilation step, so the build is `rm -rf output && mkdir -p output && cp -r source/. output/`,
+leaving `lua/` at the root of `output/`.
+
+Because it is ignored, **`output/` does not follow branch switches** — it silently keeps whatever
+was last built, which is an easy way to publish the wrong version. Rebuild after any checkout
+before publishing.
 
 - `lua/SpawnSelector/SpawnSelector_Utility.lua` — vendored `Class_ReplaceMethod`; loaded first.
 - `lua/SpawnSelector/SpawnSelector_Shared.lua` — the two network messages (pick request, team
@@ -25,11 +46,15 @@ Mod files live at the repo root (standard NS2 layout). Load order is declared in
   predict.
 - `lua/SpawnSelector/SpawnSelector_Server.lua` — all server logic (pick handler, both
   marine-selection mechanisms — vanilla and the optional CustomSpawns one, see below — the
-  alien-team announcement, logout lock, `sv_spawnselect` admin toggle).
+  alien-team announcement, logout lock, `sv_spawnselect` admin toggle, `SpawnSelectorConfig.json`
+  loading).
 - `lua/SpawnSelector/SpawnSelector_Client.lua` — attaches the UI to `AlienCommander`, and renders
   the alien-team pick announcement as a chat message for every alien player.
 - `lua/SpawnSelector/GUISpawnSelectionMenu.lua` — the "SELECT STARTING LOCATION" panel.
 - `lua/SpawnSelector/SpawnSelector_Predict.lua` — loads shared defs into the prediction VM.
+
+(All four paths above are relative to `source/`, e.g. the first is really
+`source/lua/SpawnSelector/SpawnSelector_Utility.lua` on disk.)
 
 ## NS2 specifics worth knowing before changing things
 
@@ -67,6 +92,15 @@ Mod files live at the repo root (standard NS2 layout). Load order is declared in
   `NSLSendTeamMessage(kTeam2Index, ...)` / `NSLSystemMessage` chat injection
   (`lua/NSL/admincommands/server.lua`, `lua/NSL/messages/client.lua`), stripped of NSL's
   localization/message-id/league-name machinery since this mod only ships one message in English.
+- **The announcement's audience (whole team vs. commander only) is a server config file, not a
+  console command**, unlike `sv_spawnselect`. `kConfig` is loaded once at `SpawnSelector_Server.lua`'s
+  top level via NS2's core `LoadConfigFile("SpawnSelectorConfig.json", kDefaultConfig, true)`
+  (`core/lua/ConfigFileUtility.lua` — always available, no `Script.Load` needed) and never
+  re-read, so edits need a map change or server restart, same as any other NS2 mod config file.
+  `AnnounceSelection(techPointId, commanderClient)` takes the picking commander's own `client`
+  (already in hand in `OnSpawnSelectionMessage`) specifically so the `AnnounceToWholeTeam == false`
+  branch has someone to message — don't re-derive "the commander" via a team lookup, the caller
+  already has the right client.
 
 ## Optional CustomSpawns integration (this mod is still standalone)
 

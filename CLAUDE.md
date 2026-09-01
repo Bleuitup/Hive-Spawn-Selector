@@ -4,7 +4,7 @@ Guidance for AI assistants and contributors working in this repository.
 
 ## What this is
 
-**Spawn Selector** is a server-side mod for the game **Natural Selection 2**. Before a round, the
+**Hive Spawn Selector** is a server-side mod for the game **Natural Selection 2**. Before a round, the
 **alien commander** picks the team's starting hive from a UI; the **marines** are then placed at a
 random *legal* partner location for that hive. It also freezes players and locks commander logout
 during the start-of-round countdown.
@@ -21,13 +21,13 @@ Standard NS2 Launch Pad project layout, matching the author's other mods: `mod.s
 ```
 mod.settings                                  workshop metadata
 preview.jpg                                   workshop preview
-source/lua/entry/SpawnSelector.entry          Client / Server / Predict bootstraps + Priority
-source/lua/SpawnSelector/*.lua
+source/lua/entry/HiveSpawnSelector.entry      Client / Server / Predict bootstraps + Priority
+source/lua/HiveSpawnSelector/*.lua
 output/                                       Launch Pad build output, gitignored
 ```
 
 `source/` is stripped at build time, so runtime paths are `lua/...` — which is why the entry
-file's own `Client = "lua/SpawnSelector/SpawnSelector_Client.lua"` (and every `Script.Load` inside
+file's own `Client = "lua/HiveSpawnSelector/HiveSpawnSelector_Client.lua"` (and every `Script.Load` inside
 the Lua files) is correct as written, unprefixed with `source/`. **Do not** add `source/` to any
 path inside the Lua or the entry file.
 
@@ -39,22 +39,22 @@ Because it is ignored, **`output/` does not follow branch switches** — it sile
 was last built, which is an easy way to publish the wrong version. Rebuild after any checkout
 before publishing.
 
-- `lua/SpawnSelector/SpawnSelector_Utility.lua` — vendored `Class_ReplaceMethod`; loaded first.
-- `lua/SpawnSelector/SpawnSelector_Shared.lua` — the two network messages (pick request, team
+- `lua/HiveSpawnSelector/HiveSpawnSelector_Utility.lua` — vendored `Class_ReplaceMethod`; loaded first.
+- `lua/HiveSpawnSelector/HiveSpawnSelector_Shared.lua` — the two network messages (pick request, team
   announcement), a shared `TechPoint` getter, `GameInfo` synced fields (`spawnSelectionEnabled`,
   `spawnSelected`, `legalAlienSpawns`), and the countdown freeze. Loaded by client, server **and**
   predict.
-- `lua/SpawnSelector/SpawnSelector_Server.lua` — all server logic (pick handler, both
+- `lua/HiveSpawnSelector/HiveSpawnSelector_Server.lua` — all server logic (pick handler, both
   marine-selection mechanisms — vanilla and the optional CustomSpawns one, see below — the
-  alien-team announcement, logout lock, `sv_spawnselect` admin toggle, `SpawnSelectorConfig.json`
+  alien-team announcement, logout lock, `sv_spawnselect` admin toggle, `HiveSpawnSelectorConfig.json`
   loading).
-- `lua/SpawnSelector/SpawnSelector_Client.lua` — attaches the UI to `AlienCommander`, and renders
+- `lua/HiveSpawnSelector/HiveSpawnSelector_Client.lua` — attaches the UI to `AlienCommander`, and renders
   the alien-team pick announcement as a chat message for every alien player.
-- `lua/SpawnSelector/GUISpawnSelectionMenu.lua` — the "SELECT STARTING LOCATION" panel.
-- `lua/SpawnSelector/SpawnSelector_Predict.lua` — loads shared defs into the prediction VM.
+- `lua/HiveSpawnSelector/GUIHiveSpawnSelectorMenu.lua` — the "SELECT STARTING LOCATION" panel.
+- `lua/HiveSpawnSelector/HiveSpawnSelector_Predict.lua` — loads shared defs into the prediction VM.
 
 (All four paths above are relative to `source/`, e.g. the first is really
-`source/lua/SpawnSelector/SpawnSelector_Utility.lua` on disk.)
+`source/lua/HiveSpawnSelector/HiveSpawnSelector_Utility.lua` on disk.)
 
 ## NS2 specifics worth knowing before changing things
 
@@ -79,22 +79,22 @@ before publishing.
   **Predict** VM too, or the local player rubber-bands.
 - `Class_ReplaceMethod(class, name, fn)` returns the original for chaining and also replaces it on
   already-derived classes. Vanilla `TechPoint:GetTeamNumberAllowed()` is server-only — the shared
-  getter in `SpawnSelector_Shared.lua` exists so client UI can call it.
+  getter in `HiveSpawnSelector_Shared.lua` exists so client UI can call it.
 - **The alien-team pick announcement is a real chat message, not a UI-only sync.** The
   `spawnSelected` `GameInfo` field only reaches the commander's own client (it drives the
   commander-only picker UI, attached via `AddClientUIScriptForClass("AlienCommander", ...)`), so
-  it can't be used to notify the rest of the team. `SpawnSelector_Server.lua`'s
-  `AnnounceSelection` instead sends a dedicated `SpawnSelector_Announce` message directly to
+  it can't be used to notify the rest of the team. `HiveSpawnSelector_Server.lua`'s
+  `AnnounceSelection` instead sends a dedicated `HiveSpawnSelector_Announce` message directly to
   every player on `kTeam2Index` (via `GetEntitiesForTeam("Player", kTeam2Index)` +
-  `Server.GetOwner`), and `SpawnSelector_Client.lua` renders it by hooking the global
+  `Server.GetOwner`), and `HiveSpawnSelector_Client.lua` renders it by hooking the global
   `ChatUI_GetMessages()` and injecting a message in vanilla's `chatMessages` shape (color, header,
   color, text, isCommander, isRookie, 0, 0 — see `ns2/lua/Chat.lua`). Adapted from NSL's
   `NSLSendTeamMessage(kTeam2Index, ...)` / `NSLSystemMessage` chat injection
   (`lua/NSL/admincommands/server.lua`, `lua/NSL/messages/client.lua`), stripped of NSL's
   localization/message-id/league-name machinery since this mod only ships one message in English.
 - **The announcement's audience (whole team vs. commander only) is a server config file, not a
-  console command**, unlike `sv_spawnselect`. `kConfig` is loaded once at `SpawnSelector_Server.lua`'s
-  top level via NS2's core `LoadConfigFile("SpawnSelectorConfig.json", kDefaultConfig, true)`
+  console command**, unlike `sv_spawnselect`. `kConfig` is loaded once at `HiveSpawnSelector_Server.lua`'s
+  top level via NS2's core `LoadConfigFile("HiveSpawnSelectorConfig.json", kDefaultConfig, true)`
   (`core/lua/ConfigFileUtility.lua` — always available, no `Script.Load` needed) and never
   re-read, so edits need a map change or server restart, same as any other NS2 mod config file.
   `AnnounceSelection(techPointId, commanderClient, marineCandidates)` takes the picking
@@ -105,9 +105,9 @@ before publishing.
   chosen.** `PickMarineSpawnFromCustomSpawns`/`PickMarineSpawnVanilla` both now return
   `(chosenTechPoint, fullCandidateList)` — the chosen one still drives real placement as before,
   but `AnnounceSelection`'s `marineCandidates` parameter takes the *list*, encoded into the
-  `SpawnSelector_Announce` message as a comma-separated `marineSpawnNames` string (matching the
+  `HiveSpawnSelector_Announce` message as a comma-separated `marineSpawnNames` string (matching the
   `legalAlienSpawns` string-list convention already used elsewhere in this file, rather than
-  inventing a fixed-size entityid-slot scheme). `SpawnSelector_Client.lua` renders 1 name as
+  inventing a fixed-size entityid-slot scheme). `HiveSpawnSelector_Client.lua` renders 1 name as
   "Marines will spawn in X.", more than 1 as "Marines will spawn in either X, Y.". Do not simplify
   this back to reporting `kSelectedMarineSpawn` alone — that would tell the alien team exactly
   where marines start, which is the opposite of the intended effect on servers where the
@@ -127,14 +127,14 @@ conversion. Instead, this mod stays exactly as it is and *opportunistically* rea
 globals if they happen to exist at runtime:
 
 - **Detection is lazy, not at file-load time.** `EnsureShineHooksRegistered` (in
-  `SpawnSelector_Server.lua`) only runs from our own `NS2Gamerules:ResetGame` hook, not at the top
+  `HiveSpawnSelector_Server.lua`) only runs from our own `NS2Gamerules:ResetGame` hook, not at the top
   of the file — this mod and Shine are independent NS2 mods with no guaranteed load order, so
   `Shine` might not exist yet when this file's top level executes. By the time a round actually
   resets, every server mod has finished loading, so it's safe to check there.
 - **We register directly into Shine's hook registry without becoming a Shine plugin.**
   `Shine.Hook.Add(Event, Index, Function, Priority)` accepts any caller, not just registered Shine
   plugins (`Person8880/Shine`'s `lua/shine/core/shared/hook.lua:106`) — so
-  `Shine.Hook.Add("PreChooseTechPoint", "SpawnSelector", OnPreChooseTechPoint)` hooks into
+  `Shine.Hook.Add("PreChooseTechPoint", "HiveSpawnSelector", OnPreChooseTechPoint)` hooks into
   CustomSpawns' own published `"PreChooseTechPoint"` event (fired from its
   `NS2Gamerules:ChooseTechPoint` override) with no `Shine.Plugin(...)` registration, no
   `lua/shine/extensions/` folder, and no admin-menu/plugin-config involvement at all.
@@ -184,7 +184,7 @@ Each of these looks like an oversight in review and is not. Confirmed by the mai
 - **`sv_spawnselect false` does not persist across a map change.** `kEnabled` is a module local
   and the Lua VM is rebuilt per map, so the mod returns to enabled. The supported way to disable
   it permanently is to remove the mod from the server.
-- **There is no debug logging in the shipped build.** The `[SpawnSelector]`-prefixed diagnostics
+- **There is no debug logging in the shipped build.** The `[HiveSpawnSelector]`-prefixed diagnostics
   were removed in `d2acfcb` once the feature was verified. If a remote problem needs diagnosing,
   add them back behind a `kDebug` flag (off by default) and keep the flag once it's fixed.
 - **Never run alongside NSL.** Its `customspawns` feature (a *different*, unrelated `customspawns`
@@ -200,7 +200,7 @@ Each of these looks like an oversight in review and is not. Confirmed by the mai
 ## Conventions
 
 - Match the surrounding file's indentation: the server/shared/client/utility files use **tabs**;
-  `GUISpawnSelectionMenu.lua` uses 4-space indent (kept from its NSL origin).
+  `GUIHiveSpawnSelectorMenu.lua` uses 4-space indent (kept from its NSL origin).
 - Gate new round-affecting behavior on the synced enable flag (`GameInfo:GetSpawnSelectionEnabled()`
   / the server-side `kEnabled`) so `sv_spawnselect false` reverts cleanly to vanilla.
 - Keep `README.md` user-facing; put developer notes here.

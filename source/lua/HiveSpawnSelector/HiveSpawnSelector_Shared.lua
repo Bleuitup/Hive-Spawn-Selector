@@ -1,5 +1,5 @@
--- SpawnSelector
--- lua/SpawnSelector/SpawnSelector_Shared.lua
+-- Hive Spawn Selector
+-- lua/HiveSpawnSelector/HiveSpawnSelector_Shared.lua
 --
 -- Shared definitions: the spawn-selection network message and two synced GameInfo
 -- fields the commander UI reads (whether selection is enabled, and the currently
@@ -8,17 +8,17 @@
 -- GameInfo extension pattern adapted from the NSL plugin:
 -- https://github.com/xToken/NSL - lua/NSL/gameinfo/shared.lua - by Dragon
 
-Script.Load("lua/SpawnSelector/SpawnSelector_Utility.lua")
+Script.Load("lua/HiveSpawnSelector/HiveSpawnSelector_Utility.lua")
 
 -- Client -> Server: the alien commander's chosen tech point (-1 means "random / clear").
-Shared.RegisterNetworkMessage("SpawnSelector_SelectSpawn", { techPointId = "entityid" })
+Shared.RegisterNetworkMessage("HiveSpawnSelector_SelectSpawn", { techPointId = "entityid" })
 
 -- Server -> alien team: relays the commander's pick as a team chat message (-1 means the pick
 -- was cleared / random). marineSpawnNames is a comma-separated list of every legal marine spawn
 -- for the pick (not just the one actually chosen - see AnnounceSelection), empty when not
--- applicable. See SpawnSelector_Server.lua's AnnounceSelection and SpawnSelector_Client.lua's
+-- applicable. See HiveSpawnSelector_Server.lua's AnnounceSelection and HiveSpawnSelector_Client.lua's
 -- OnAnnounceMessage.
-Shared.RegisterNetworkMessage("SpawnSelector_Announce", { techPointId = "entityid", marineSpawnNames = "string (256)" })
+Shared.RegisterNetworkMessage("HiveSpawnSelector_Announce", { techPointId = "entityid", marineSpawnNames = "string (256)" })
 
 -- Vanilla only defines TechPoint:GetTeamNumberAllowed() inside an "if Server then" block,
 -- so the method does not exist on the client even though the allowedTeamNumber networkVar is
@@ -33,7 +33,7 @@ local networkVars =
 	spawnSelected = "entityid",
 	-- Comma-separated lowercase location names of the alien-legal spawns for this round, as
 	-- decided by Shine's CustomSpawns plugin when it's present and configured for the current map
-	-- (see SpawnSelector_Server.lua). Empty otherwise, in which case the client falls back to
+	-- (see HiveSpawnSelector_Server.lua). Empty otherwise, in which case the client falls back to
 	-- GetTeamNumberAllowed().
 	legalAlienSpawns = "string (256)"
 }

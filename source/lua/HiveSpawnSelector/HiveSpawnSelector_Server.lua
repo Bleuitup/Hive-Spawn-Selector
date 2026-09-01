@@ -1,5 +1,5 @@
--- SpawnSelector
--- lua/SpawnSelector/SpawnSelector_Server.lua
+-- Hive Spawn Selector
+-- lua/HiveSpawnSelector/HiveSpawnSelector_Server.lua
 --
 -- Server logic: the alien commander picks a starting tech point; the marines are given a
 -- random legal partner spawn for it.
@@ -27,10 +27,10 @@
 -- Adapted from the NSL plugin:
 -- https://github.com/xToken/NSL - lua/NSL/customspawns/server.lua - by Dragon
 
-Script.Load("lua/SpawnSelector/SpawnSelector_Utility.lua")
-Script.Load("lua/SpawnSelector/SpawnSelector_Shared.lua")
+Script.Load("lua/HiveSpawnSelector/HiveSpawnSelector_Utility.lua")
+Script.Load("lua/HiveSpawnSelector/HiveSpawnSelector_Shared.lua")
 
--- Server admin config: config://SpawnSelectorConfig.json, written with these defaults the first
+-- Server admin config: config://HiveSpawnSelectorConfig.json, written with these defaults the first
 -- time the mod runs on a server. Loaded once at mod load - edits need a map change or server
 -- restart to take effect, the usual convention for NS2 mod config files (see LoadConfigFile in
 -- core/lua/ConfigFileUtility.lua).
@@ -42,7 +42,7 @@ local kDefaultConfig = {
 	-- doesn't happen on servers where teams are set well before everyone readies up.
 	AnnounceToWholeTeam = true
 }
-local kConfig = LoadConfigFile("SpawnSelectorConfig.json", kDefaultConfig, true)
+local kConfig = LoadConfigFile("HiveSpawnSelectorConfig.json", kDefaultConfig, true)
 
 local kEnabled = true
 local kSelectedMarineSpawn
@@ -220,12 +220,12 @@ local kShineHooksRegistered = false
 local function EnsureShineHooksRegistered()
 	if kShineHooksRegistered then return end
 	if not (Shine and Shine.Hook and Shine.Hook.Add) then return end
-	Shine.Hook.Add("PreChooseTechPoint", "SpawnSelector", OnPreChooseTechPoint)
+	Shine.Hook.Add("PreChooseTechPoint", "HiveSpawnSelector", OnPreChooseTechPoint)
 	kShineHooksRegistered = true
 end
 
--- Recomputes the legal-alien-spawn list synced to clients (see SpawnSelector_Shared.lua /
--- GUISpawnSelectionMenu.lua). CustomSpawns lazily parses its map config from its own
+-- Recomputes the legal-alien-spawn list synced to clients (see HiveSpawnSelector_Shared.lua /
+-- GUIHiveSpawnSelectorMenu.lua). CustomSpawns lazily parses its map config from its own
 -- "OnGameReset" handler, itself triggered by the same underlying NS2Gamerules:ResetGame call this
 -- runs from - since this runs AFTER originalResetGame() below, CustomSpawns (if present) has
 -- already had a chance to parse this map's config by the time we read its data, regardless of
@@ -303,12 +303,12 @@ local function AnnounceSelection(techPointId, commanderClient, marineCandidates)
 		for _, player in ipairs(players) do
 			local client = Server.GetOwner(player)
 			if client then
-				Server.SendNetworkMessage(client, "SpawnSelector_Announce",
+				Server.SendNetworkMessage(client, "HiveSpawnSelector_Announce",
 					{ techPointId = techPointId, marineSpawnNames = marineSpawnNames }, true)
 			end
 		end
 	elseif commanderClient then
-		Server.SendNetworkMessage(commanderClient, "SpawnSelector_Announce",
+		Server.SendNetworkMessage(commanderClient, "HiveSpawnSelector_Announce",
 			{ techPointId = techPointId, marineSpawnNames = marineSpawnNames }, true)
 	end
 end
@@ -398,7 +398,7 @@ local function OnSpawnSelectionMessage(client, message)
 
 end
 
-Server.HookNetworkMessage("SpawnSelector_SelectSpawn", OnSpawnSelectionMessage)
+Server.HookNetworkMessage("HiveSpawnSelector_SelectSpawn", OnSpawnSelectionMessage)
 
 -- Admin toggle. Defaults to enabled; "sv_spawnselect false" disables (UI hides, spawns vanilla).
 local function SetSpawnSelectEnabled(client, enabledArg)
@@ -418,7 +418,7 @@ local function SetSpawnSelectEnabled(client, enabledArg)
 		ClearSelectedSpawns()
 	end
 
-	Shared.Message("SpawnSelector: alien spawn selection " .. (kEnabled and "ENABLED" or "DISABLED"))
+	Shared.Message("Hive Spawn Selector: alien spawn selection " .. (kEnabled and "ENABLED" or "DISABLED"))
 
 end
 

@@ -1,5 +1,5 @@
--- SpawnSelector
--- lua/SpawnSelector/SpawnSelector_Client.lua
+-- Hive Spawn Selector
+-- lua/HiveSpawnSelector/HiveSpawnSelector_Client.lua
 --
 -- Attaches the spawn-selection menu to the alien commander, and relays the commander's pick to
 -- every alien team member as a chat-style message ("Your commander has selected X as your
@@ -7,15 +7,16 @@
 -- without NSL's localization/message-id/league-name machinery - this mod only ships one message,
 -- in English.
 
-Script.Load("lua/SpawnSelector/SpawnSelector_Utility.lua")
-Script.Load("lua/SpawnSelector/SpawnSelector_Shared.lua")
+Script.Load("lua/HiveSpawnSelector/HiveSpawnSelector_Utility.lua")
+Script.Load("lua/HiveSpawnSelector/HiveSpawnSelector_Shared.lua")
 
-AddClientUIScriptForClass("AlienCommander", "SpawnSelector/GUISpawnSelectionMenu")
+AddClientUIScriptForClass("AlienCommander", "HiveSpawnSelector/GUIHiveSpawnSelectorMenu")
 
--- Magenta, unmistakable against the usual chat colors - this used to be a dark, easy-to-miss
--- blue-grey (0.28, 0.36, 0.46).
+-- Only the "[Hive Spawn Selector]" tag is magenta, unmistakable against the usual chat colors
+-- (this used to be a dark, easy-to-miss blue-grey, 0.28, 0.36, 0.46) - the message itself stays
+-- standard white so it reads like normal chat text.
 local kAnnounceHeaderColor = Color(1, 0, 1, 1)
-local kAnnounceTextColor = Color(1, 0, 1, 1)
+local kAnnounceTextColor = Color(1, 1, 1, 1)
 
 -- Queued messages get merged into vanilla's chat feed the next time it polls - see
 -- ns2/lua/Chat.lua's ChatUI_GetMessages/chatMessages for the color/header/color/message/... shape
@@ -48,7 +49,7 @@ local function OnAnnounceMessage(message)
 	end
 
 	-- Names every legal marine spawn for the pick, not just the one actually chosen - see
-	-- AnnounceSelection in SpawnSelector_Server.lua.
+	-- AnnounceSelection in HiveSpawnSelector_Server.lua.
 	if message.marineSpawnNames and message.marineSpawnNames ~= "" then
 		local marineNames = { }
 		for marineName in string.gmatch(message.marineSpawnNames, "[^,]+") do
@@ -63,7 +64,7 @@ local function OnAnnounceMessage(message)
 	end
 
 	table.insert(queuedChatMessages, kAnnounceHeaderColor)
-	table.insert(queuedChatMessages, "(Spawn Selector): ")
+	table.insert(queuedChatMessages, "[Hive Spawn Selector] ")
 	table.insert(queuedChatMessages, kAnnounceTextColor)
 	table.insert(queuedChatMessages, text)
 	table.insert(queuedChatMessages, false)
@@ -75,4 +76,4 @@ local function OnAnnounceMessage(message)
 
 end
 
-Client.HookNetworkMessage("SpawnSelector_Announce", OnAnnounceMessage)
+Client.HookNetworkMessage("HiveSpawnSelector_Announce", OnAnnounceMessage)

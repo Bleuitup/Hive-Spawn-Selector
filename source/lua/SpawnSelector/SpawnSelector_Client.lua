@@ -12,8 +12,10 @@ Script.Load("lua/SpawnSelector/SpawnSelector_Shared.lua")
 
 AddClientUIScriptForClass("AlienCommander", "SpawnSelector/GUISpawnSelectionMenu")
 
-local kAnnounceHeaderColor = Color(0.28, 0.36, 0.46, 1)
-local kAnnounceTextColor = Color(1, 1, 1, 1)
+-- Magenta, unmistakable against the usual chat colors - this used to be a dark, easy-to-miss
+-- blue-grey (0.28, 0.36, 0.46).
+local kAnnounceHeaderColor = Color(1, 0, 1, 1)
+local kAnnounceTextColor = Color(1, 0, 1, 1)
 
 -- Queued messages get merged into vanilla's chat feed the next time it polls - see
 -- ns2/lua/Chat.lua's ChatUI_GetMessages/chatMessages for the color/header/color/message/... shape
@@ -43,6 +45,21 @@ local function OnAnnounceMessage(message)
 		text = string.format("Your commander has selected %s as your spawn.", tp:GetLocationName())
 	else
 		text = "Your commander has selected a random spawn."
+	end
+
+	-- Names every legal marine spawn for the pick, not just the one actually chosen - see
+	-- AnnounceSelection in SpawnSelector_Server.lua.
+	if message.marineSpawnNames and message.marineSpawnNames ~= "" then
+		local marineNames = { }
+		for marineName in string.gmatch(message.marineSpawnNames, "[^,]+") do
+			table.insert(marineNames, marineName)
+		end
+
+		if #marineNames == 1 then
+			text = text .. string.format(" Marines will spawn in %s.", marineNames[1])
+		elseif #marineNames > 1 then
+			text = text .. string.format(" Marines will spawn in either %s.", table.concat(marineNames, ", "))
+		end
 	end
 
 	table.insert(queuedChatMessages, kAnnounceHeaderColor)

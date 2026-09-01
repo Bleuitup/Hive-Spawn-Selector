@@ -124,6 +124,10 @@ end
 -- map configs aren't always filled in on both sides (e.g. ns2_docking's single alien spot has no
 -- enemyspawns of its own even though its marine partner lists it), so only this direction is
 -- reliable.
+--
+-- Returns the chosen tech point AND the full candidate list it was drawn from (used to announce
+-- "marines will spawn in either X, Y" - see AnnounceSelection - without revealing which one was
+-- actually chosen).
 local function PickMarineSpawnFromCustomSpawns(spawns, alienTechPoint)
 	local alienName = string.lower(alienTechPoint:GetLocationName())
 	local validMarineSpawns = { }
@@ -140,9 +144,9 @@ local function PickMarineSpawnFromCustomSpawns(spawns, alienTechPoint)
 	end
 
 	if #validMarineSpawns > 0 then
-		return validMarineSpawns[math.random(#validMarineSpawns)]
+		return validMarineSpawns[math.random(#validMarineSpawns)], validMarineSpawns
 	end
-	return nil
+	return nil, validMarineSpawns
 end
 
 -- Pick a random VALID marine tech point for the alien's chosen hive using the vanilla map's own
@@ -150,6 +154,9 @@ end
 -- spawn combinations, common on competitive maps. Falls back to any other tech point on maps that
 -- don't define pairs. Uses math.random (the old techPointRandomizer:random call kept returning
 -- the first tech point, so the marine spawn was effectively fixed).
+--
+-- Returns the chosen tech point AND the full candidate list it was drawn from - see
+-- PickMarineSpawnFromCustomSpawns above for why.
 local function PickMarineSpawnVanilla(alienTechPoint)
 
 	local alienName = string.lower(alienTechPoint:GetLocationName())
@@ -162,9 +169,15 @@ local function PickMarineSpawnVanilla(alienTechPoint)
 			end
 		end
 		if #validMarineNames > 0 then
-			local marineTP = ResolveTechPointByName(validMarineNames[math.random(#validMarineNames)])
-			if marineTP then
-				return marineTP
+			local validTechPoints = { }
+			for _, name in ipairs(validMarineNames) do
+				local tp = ResolveTechPointByName(name)
+				if tp then
+					table.insert(validTechPoints, tp)
+				end
+			end
+			if #validTechPoints > 0 then
+				return validTechPoints[math.random(#validTechPoints)], validTechPoints
 			end
 		end
 	end
@@ -178,9 +191,9 @@ local function PickMarineSpawnVanilla(alienTechPoint)
 		end
 	end
 	if #validTechPoints > 0 then
-		return validTechPoints[math.random(#validTechPoints)]
+		return validTechPoints[math.random(#validTechPoints)], validTechPoints
 	end
-	return nil
+	return nil, validTechPoints
 
 end
 
@@ -267,21 +280,36 @@ function GetCommanderLogoutAllowed()
 end
 
 -- Relays the commander's pick as a chat message (client.lua renders it), e.g. "Your commander
--- has selected Reception as your spawn." Pass Entity.invalidId for the random/cleared case, and
--- the picking commander's own client so the commander-only mode (kConfig.AnnounceToWholeTeam ==
--- false) has someone to send it to. Adapted from NSL's NSLSendTeamMessage(kTeam2Index, ...) calls
--- in lua/NSL/customspawns/server.lua, without NSL's localization/message-id machinery.
-local function AnnounceSelection(techPointId, commanderClient)
+-- has selected Reception as your spawn. Marines will spawn in either Cargo, Warehouse." Pass
+-- Entity.invalidId for the random/cleared case (marineCandidates is meaningless then, pass nil),
+-- and the picking commander's own client so the commander-only mode
+-- (kConfig.AnnounceToWholeTeam == false) has someone to send it to. marineCandidates is the full
+-- candidate list PickMarineSpawnFromCustomSpawns/PickMarineSpawnVanilla drew from, NOT just the
+-- one actually chosen - the message names every legal marine spawn rather than spoiling which one
+-- won the random pick. Adapted from NSL's NSLSendTeamMessage(kTeam2Index, ...) calls in
+-- lua/NSL/customspawns/server.lua, without NSL's localization/message-id machinery.
+local function AnnounceSelection(techPointId, commanderClient, marineCandidates)
+	local marineSpawnNames = ""
+	if marineCandidates and #marineCandidates > 0 then
+		local names = { }
+		for _, tp in ipairs(marineCandidates) do
+			table.insert(names, tp:GetLocationName())
+		end
+		marineSpawnNames = table.concat(names, ",")
+	end
+
 	if kConfig.AnnounceToWholeTeam then
 		local players = GetEntitiesForTeam("Player", kTeam2Index)
 		for _, player in ipairs(players) do
 			local client = Server.GetOwner(player)
 			if client then
-				Server.SendNetworkMessage(client, "SpawnSelector_Announce", { techPointId = techPointId }, true)
+				Server.SendNetworkMessage(client, "SpawnSelector_Announce",
+					{ techPointId = techPointId, marineSpawnNames = marineSpawnNames }, true)
 			end
 		end
 	elseif commanderClient then
-		Server.SendNetworkMessage(commanderClient, "SpawnSelector_Announce", { techPointId = techPointId }, true)
+		Server.SendNetworkMessage(commanderClient, "SpawnSelector_Announce",
+			{ techPointId = techPointId, marineSpawnNames = marineSpawnNames }, true)
 	end
 end
 
@@ -316,7 +344,11 @@ local function OnSpawnSelectionMessage(client, message)
 		local name = string.lower(tp:GetLocationName())
 		local spawnInfo = customSpawnsData[name]
 		local alienEligible = spawnInfo and (spawnInfo.team == 0 or spawnInfo.team == kTeam2Index)
-		local marineTechPoint = alienEligible and PickMarineSpawnFromCustomSpawns(customSpawnsData, tp)
+
+		local marineTechPoint, marineCandidates
+		if alienEligible then
+			marineTechPoint, marineCandidates = PickMarineSpawnFromCustomSpawns(customSpawnsData, tp)
+		end
 
 		if marineTechPoint then
 			kSelectedAlienSpawn = tp
@@ -327,7 +359,7 @@ local function OnSpawnSelectionMessage(client, message)
 			if gameInfo then
 				gameInfo:SetSelectedSpawn(tp:GetId())
 			end
-			AnnounceSelection(tp:GetId(), client)
+			AnnounceSelection(tp:GetId(), client, marineCandidates)
 		else
 			-- Not alien-legal under CustomSpawns, or no legal marine partner: do not show a
 			-- choice we would not honour.
@@ -340,8 +372,10 @@ local function OnSpawnSelectionMessage(client, message)
 
 	-- Vanilla fallback path (CustomSpawns absent, or not configured for this map) - the map's
 	-- default allowed spawn combinations.
-	local marineTechPoint = (tp:GetTeamNumberAllowed() == 0 or tp:GetTeamNumberAllowed() == kTeam2Index)
-		and PickMarineSpawnVanilla(tp)
+	local marineTechPoint, marineCandidates
+	if tp:GetTeamNumberAllowed() == 0 or tp:GetTeamNumberAllowed() == kTeam2Index then
+		marineTechPoint, marineCandidates = PickMarineSpawnVanilla(tp)
+	end
 
 	if marineTechPoint then
 		-- Valid alien-allowed pick with a legal marine partner: cache both and install the
@@ -354,7 +388,7 @@ local function OnSpawnSelectionMessage(client, message)
 		if gameInfo then
 			gameInfo:SetSelectedSpawn(tp:GetId())
 		end
-		AnnounceSelection(tp:GetId(), client)
+		AnnounceSelection(tp:GetId(), client, marineCandidates)
 	else
 		-- Random / clear request, an invalid id, or a pick we cannot pair a marine spawn with -
 		-- revert to vanilla selection rather than showing a choice we would not honour.

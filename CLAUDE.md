@@ -97,10 +97,22 @@ before publishing.
   top level via NS2's core `LoadConfigFile("SpawnSelectorConfig.json", kDefaultConfig, true)`
   (`core/lua/ConfigFileUtility.lua` — always available, no `Script.Load` needed) and never
   re-read, so edits need a map change or server restart, same as any other NS2 mod config file.
-  `AnnounceSelection(techPointId, commanderClient)` takes the picking commander's own `client`
-  (already in hand in `OnSpawnSelectionMessage`) specifically so the `AnnounceToWholeTeam == false`
-  branch has someone to message — don't re-derive "the commander" via a team lookup, the caller
-  already has the right client.
+  `AnnounceSelection(techPointId, commanderClient, marineCandidates)` takes the picking
+  commander's own `client` (already in hand in `OnSpawnSelectionMessage`) specifically so the
+  `AnnounceToWholeTeam == false` branch has someone to message — don't re-derive "the commander"
+  via a team lookup, the caller already has the right client.
+- **The announcement names every legal marine spawn for the pick, never just the one actually
+  chosen.** `PickMarineSpawnFromCustomSpawns`/`PickMarineSpawnVanilla` both now return
+  `(chosenTechPoint, fullCandidateList)` — the chosen one still drives real placement as before,
+  but `AnnounceSelection`'s `marineCandidates` parameter takes the *list*, encoded into the
+  `SpawnSelector_Announce` message as a comma-separated `marineSpawnNames` string (matching the
+  `legalAlienSpawns` string-list convention already used elsewhere in this file, rather than
+  inventing a fixed-size entityid-slot scheme). `SpawnSelector_Client.lua` renders 1 name as
+  "Marines will spawn in X.", more than 1 as "Marines will spawn in either X, Y.". Do not simplify
+  this back to reporting `kSelectedMarineSpawn` alone — that would tell the alien team exactly
+  where marines start, which is the opposite of the intended effect on servers where the
+  round begins right after the pick and the announcement is otherwise the only new information
+  either team gets before it does.
 
 ## Optional CustomSpawns integration (this mod is still standalone)
 

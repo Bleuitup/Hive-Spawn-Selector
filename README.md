@@ -20,11 +20,12 @@ deliberate starting positions instead of the usual random spawns.
   maps that don't define spawn pairs), so the two teams never share a starting location.
 - The selection is highlighted in green and syncs to the alien team so everyone can see
   the chosen spot.
-- The alien team gets a chat message announcing the pick (e.g. "Your commander has selected
-  Reception as your spawn."), or that a random spawn will be used if the commander clicks
-  **Random Spawn** or picks somewhere that turns out to have no legal partner spawn. By default
-  this goes to the whole team; see **Server admin** below to send it to the commander only
-  instead.
+- The alien team gets a magenta chat message announcing the pick (e.g. "Your commander has
+  selected Reception as your spawn. Marines will spawn in either Cargo, Warehouse."), or that a
+  random spawn will be used if the commander clicks **Random Spawn** or picks somewhere that
+  turns out to have no legal partner spawn. The marine part lists every legal marine spawn for
+  the pick, not which one actually won the random draw. By default this goes to the whole team;
+  see **Server admin** below to send it to the commander only instead.
 
 It also tightens up the start of the round:
 

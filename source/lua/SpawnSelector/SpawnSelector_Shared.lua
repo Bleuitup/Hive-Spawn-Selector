@@ -14,9 +14,11 @@ Script.Load("lua/SpawnSelector/SpawnSelector_Utility.lua")
 Shared.RegisterNetworkMessage("SpawnSelector_SelectSpawn", { techPointId = "entityid" })
 
 -- Server -> alien team: relays the commander's pick as a team chat message (-1 means the pick
--- was cleared / random). See SpawnSelector_Server.lua's AnnounceSelection and
--- SpawnSelector_Client.lua's OnAnnounceMessage.
-Shared.RegisterNetworkMessage("SpawnSelector_Announce", { techPointId = "entityid" })
+-- was cleared / random). marineSpawnNames is a comma-separated list of every legal marine spawn
+-- for the pick (not just the one actually chosen - see AnnounceSelection), empty when not
+-- applicable. See SpawnSelector_Server.lua's AnnounceSelection and SpawnSelector_Client.lua's
+-- OnAnnounceMessage.
+Shared.RegisterNetworkMessage("SpawnSelector_Announce", { techPointId = "entityid", marineSpawnNames = "string (256)" })
 
 -- Vanilla only defines TechPoint:GetTeamNumberAllowed() inside an "if Server then" block,
 -- so the method does not exist on the client even though the allowedTeamNumber networkVar is

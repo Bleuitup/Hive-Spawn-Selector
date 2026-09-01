@@ -17,11 +17,18 @@ Handy for scrims, captains games, casual competitive play, or any server that wa
 
 It also tightens up the start of the round: players are frozen in place during the countdown, and commanders can't leave the chair during the countdown, preventing accidental or last-second logouts right before the round begins.
 
+[h1]Recommended setup[/h1]
+
+[list]
+[*] Strongly recommended: run a "ready up before the round starts" plugin, such as Shine's [b]Tournament Mode[/b], so both teams lock in and the countdown only begins once everyone is ready. Without one, the alien commander may only get a few seconds to pick before the round starts on its own.
+[*] Specifically avoid the common setup where the round auto-starts a fixed countdown (e.g. 15 seconds) as soon as both teams have a commander, with teams shuffled partway through (e.g. 5 seconds before the round begins). That leaves no good moment to pick: choosing before the shuffle announces the pick to the current alien roster, and the shuffle can then move roughly half of them onto Marines — so part of the enemy team sees the pick before the round even begins. Choosing after the shuffle is too late either way, since spawns are resolved almost immediately alongside it.
+[/list]
+
 [h1]Server admin[/h1]
 
 [list]
 [*] [b]sv_spawnselect true/false[/b] — enable or disable alien spawn selection (enabled by default).
-[*] [b]configs/HiveSpawnSelectorConfig.json[/b] — set "AnnounceToWholeTeam" to false to send the pick announcement to the alien commander only instead of the whole team. Useful on servers where teams are shuffled and the round starts immediately after commanders sit down, where a team-wide announcement can spoil the pick as a surprise before the round even begins.
+[*] [b]configs/HiveSpawnSelectorConfig.json[/b] — set "AnnounceToWholeTeam" to false to send the pick announcement to the alien commander only instead of the whole team, if your server can't avoid the shuffle-timing issue above.
 [/list]
 
 [h1]Compatibility[/h1]

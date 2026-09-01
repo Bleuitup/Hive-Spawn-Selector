@@ -1,7 +1,7 @@
 name        = "Hive Spawn Selector"
 source_dir  = "source"
 output_dir  = "output"
-description = [=[[b]Lets the Aliens team choose where they start each round.[/b] Once the alien commander picks a hive location, the Marines are automatically assigned a different starting tech point, so both teams know their bases are set before the game begins.
+description = [=[[b]Lets the Aliens team choose where they start each round.[/b] Once the alien commander picks a hive location, the Marines are automatically assigned a different starting tech point.
 
 Handy for scrims, captains games, casual competitive play, or any server that wants deliberate starting positions instead of the usual random spawns.
 
@@ -10,12 +10,10 @@ Handy for scrims, captains games, casual competitive play, or any server that wa
 [list]
 [*] Before the round starts, the alien commander sees a "SELECT STARTING LOCATION" panel listing every hive location available on the map.
 [*] Whatever the commander selects becomes the alien starting hive.
-[*] The marine base is placed at a different start location, chosen at random from the map's valid opposing spawns for the alien's pick, so the two teams never share a starting location.
+[*] The marine base is placed at a different start location, chosen at random from the map's valid opposing spawns for the alien's pick.
 [*] The selection is highlighted in green and syncs to the alien team so everyone can see the chosen spot.
 [*] The alien team gets a chat message announcing the pick, tagged "[Hive Spawn Selector]" in magenta, naming every legal marine spawn for it too (not which one actually won the random draw) — configurable to the commander only, see Server admin below.
 [/list]
-
-It also tightens up the start of the round: players are frozen in place during the countdown, and commanders can't leave the chair during the countdown, preventing accidental or last-second logouts right before the round begins.
 
 [h1]Recommended setup[/h1]
 
@@ -38,9 +36,11 @@ It also tightens up the start of the round: players are frozen in place during t
 [*] Works alongside Shine's CustomSpawns plugin (from Shine-Epsilon) automatically. If it's installed and configured for the current map, the picker restricts itself to the locations CustomSpawns allows aliens to start at, and pairs marines using its own legal combinations. No configuration needed here — it's detected automatically, and every other map or server falls back to the behavior above.
 [/list]
 
-[h1]Credits[/h1]
+[h1]Additional Credits[/h1]
 
 Based on the spawn-selection feature from the NSL (Natural Selection League) plugin by Dragon (xToken). The original code has been adapted into this focused, standalone mod. All credit for the underlying approach goes to the NSL project and its author.
+
+Thanks to LZZ for their help with the 1.0 release.
 
 Source: https://github.com/Bleuitup/Hive-Spawn-Selector]=]
 image       = "preview.jpg"

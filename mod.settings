@@ -12,7 +12,7 @@ Handy for scrims, captains games, casual competitive play, or any server that wa
 [*] Whatever the commander selects becomes the alien starting hive.
 [*] The marine base is placed at a different start location, chosen at random from the map's valid opposing spawns for the alien's pick, so the two teams never share a starting location.
 [*] The selection is highlighted in green and syncs to the alien team so everyone can see the chosen spot.
-[*] The alien team gets a chat message announcing the pick, tagged "[Hive Spawn Selector]" in magenta, naming every legal marine spawn for it too (not which one actually won the random draw) — configurable to the commander only, see Server admin below.
+[*] The alien team gets a chat announcement of the pick, tagged "[Hive Spawn Selector]" in magenta, in the game's own alien orange / marine light blue for the hive and marine spawn lines — naming every legal marine spawn, not which one actually won the random draw — configurable to the commander only, see Server admin below.
 [/list]
 
 It also tightens up the start of the round: players are frozen in place during the countdown, and commanders can't leave the chair during the countdown, preventing accidental or last-second logouts right before the round begins.

@@ -87,8 +87,9 @@ before publishing.
   `AnnounceSelection` instead sends a dedicated `HiveSpawnSelector_Announce` message directly to
   every player on `kTeam2Index` (via `GetEntitiesForTeam("Player", kTeam2Index)` +
   `Server.GetOwner`), and `HiveSpawnSelector_Client.lua` renders it by hooking the global
-  `ChatUI_GetMessages()` and injecting a message in vanilla's `chatMessages` shape (color, header,
-  color, text, isCommander, isRookie, 0, 0 — see `ns2/lua/Chat.lua`). Adapted from NSL's
+  `ChatUI_GetMessages()` and injecting one or two lines in vanilla's `chatMessages` shape (color,
+  header, color, text, isCommander, isRookie, 0, 0, repeated per line — see `ns2/lua/Chat.lua`,
+  `QueueLine` in the client file). Adapted from NSL's
   `NSLSendTeamMessage(kTeam2Index, ...)` / `NSLSystemMessage` chat injection
   (`lua/NSL/admincommands/server.lua`, `lua/NSL/messages/client.lua`), stripped of NSL's
   localization/message-id/league-name machinery since this mod only ships one message in English.
@@ -113,6 +114,21 @@ before publishing.
   where marines start, which is the opposite of the intended effect on servers where the
   round begins right after the pick and the announcement is otherwise the only new information
   either team gets before it does.
+- **The announcement is two separately-colored chat lines, not one line with colored words,
+  because vanilla's chat feed cannot do the latter.** Verified directly against
+  `ns2/lua/GUIChat.lua`: `Update` reads `chatMessages` in fixed strides of
+  `numberElementsPerMessage = 8`, and `AddMessage` calls exactly one `SetColor()` on the whole
+  message-body text item (`insertMessage["Message"]:SetColor(messageColor)`) — there is no inline
+  color-code markup in NS2's text rendering. So a single queued "message" gets at most two colors
+  total (header + body), never more, and there is no way to color individual words within one
+  line through this mechanism. `HiveSpawnSelector_Client.lua`'s `QueueLine` therefore queues the
+  alien-hive line entirely in `kAlienFontColor` and the marine-spawn line (when present) entirely
+  in `kMarineFontColor` — both vanilla globals from `ns2/lua/Globals.lua`, not approximated RGB
+  values, so they match the game's own team colors exactly. Do not attempt per-word coloring
+  within a single queued line; it silently cannot work against this renderer. Genuine inline
+  multi-color text would require hand-built GUI text items replacing the vanilla chat feed
+  entirely for this message (positioning, word-wrap, fade timers, stacking) — out of scope unless
+  explicitly asked for.
 
 ## Optional CustomSpawns integration (this mod is still standalone)
 
